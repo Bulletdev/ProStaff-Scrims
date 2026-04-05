@@ -254,11 +254,8 @@ export default function RosterPage() {
       ) : isError ? (
         <p className="py-8 text-center text-sm text-danger">{t('roster.error')}</p>
       ) : players.length === 0 ? (
-        <div className="py-12 text-center space-y-3">
+        <div className="py-12 text-center">
           <p className="text-sm text-text-muted">{t('roster.empty')}</p>
-          <Button variant="primary" size="sm" onClick={() => setShowImport(true)}>
-            {t('roster.import')}
-          </Button>
         </div>
       ) : (
         <div className="space-y-6">
