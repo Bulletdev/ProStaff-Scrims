@@ -12,6 +12,7 @@ export interface Organization {
   tier?: string
   public_tagline?: string
   discord_server?: string
+  discord_invite_url?: string
   scrims_won?: number
   scrims_lost?: number
   total_scrims?: number
