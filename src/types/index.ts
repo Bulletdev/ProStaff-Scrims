@@ -1,7 +1,8 @@
 export interface RosterPlayer {
   summoner_name: string
   role: string
-  tier?: string
+  tier?: string       // solo_queue_tier (e.g. "GOLD")
+  tier_rank?: string  // solo_queue_rank (e.g. "II")
 }
 
 export interface Organization {

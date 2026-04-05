@@ -1,9 +1,41 @@
-import { LobbyScrim } from '@/types'
+import { LobbyScrim, RosterPlayer } from '@/types'
 import { RetroPanel } from '@/components/ui/RetroPanel'
 import { RetroBadge } from '@/components/ui/RetroBadge'
 import { Button } from '@/components/ui/Button'
 import { formatDate, gameLabel, tierLabel, isProfessionalTier } from '@/lib/utils'
 import { CalendarDays, MapPin, Swords, Users } from 'lucide-react'
+
+const ROLE_ICONS: Record<string, string> = {
+  top: '🏔️', jungle: '🌿', mid: '⚡', adc: '🎯', support: '🛡️',
+}
+const ROLE_ORDER = ['top', 'jungle', 'mid', 'adc', 'support']
+
+function tierShort(tier?: string, rank?: string) {
+  if (!tier) return null
+  const t = tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase()
+  const single = ['Master', 'Grandmaster', 'Challenger']
+  if (single.includes(t)) return t.slice(0, 4)
+  return rank ? `${t.slice(0, 1)}${rank}` : t.slice(0, 1)
+}
+
+function RosterStrip({ roster }: { roster: RosterPlayer[] }) {
+  const sorted = [...roster].sort(
+    (a, b) => (ROLE_ORDER.indexOf(a.role) ?? 99) - (ROLE_ORDER.indexOf(b.role) ?? 99)
+  )
+  return (
+    <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-gold/10">
+      {sorted.map((p) => (
+        <div key={p.summoner_name} className="flex items-center gap-1.5 text-xs text-text-muted">
+          <span>{ROLE_ICONS[p.role] ?? '?'}</span>
+          <span className="font-mono text-text-primary">{p.summoner_name}</span>
+          {p.tier && (
+            <span className="text-gold/60">{tierShort(p.tier, p.tier_rank)}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 const PINK_RANKS = /^(Mestre|Master)$/i
 const GOLD_RANKS = /^(Challenger|Desafiante)$/i
@@ -82,6 +114,11 @@ export function ScrimCard({ scrim, onChallenge }: ScrimCardProps) {
           </Button>
         )}
       </div>
+
+      {/* Roster strip — from Riot-synced data */}
+      {org.roster && org.roster.length > 0 && (
+        <RosterStrip roster={org.roster} />
+      )}
 
       {/* Discord link */}
       {org.discord_invite_url && (

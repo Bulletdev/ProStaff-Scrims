@@ -21,43 +21,20 @@ interface Player {
   solo_queue_rank: string
   solo_queue_lp: number
   status: string
+  last_sync_at?: string
 }
 
 interface PlayersResponse {
-  data: {
-    players: Player[]
-  }
-}
-
-interface PlayerForm {
-  real_name: string
-  summoner_name: string
-  role: string
-  solo_queue_tier: string
-  solo_queue_rank: string
-  solo_queue_lp: string
+  data: { players: Player[] }
 }
 
 // ── Constants ─────────────────────────────────────────────────────
 
-const ROLES = ['top', 'jungle', 'mid', 'adc', 'support', 'fill']
 const ROLE_LABEL: Record<string, string> = {
   top: 'Top', jungle: 'Jungle', mid: 'Mid', adc: 'ADC', support: 'Support', fill: 'Fill',
 }
 const ROLE_ORDER = ['top', 'jungle', 'mid', 'adc', 'support', 'fill']
-
-const TIERS = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'emerald', 'diamond', 'master', 'grandmaster', 'challenger']
-const RANKS = ['IV', 'III', 'II', 'I']
 const SINGLE_TIER = ['master', 'grandmaster', 'challenger']
-
-const EMPTY_FORM: PlayerForm = {
-  real_name: '',
-  summoner_name: '',
-  role: 'top',
-  solo_queue_tier: 'gold',
-  solo_queue_rank: 'IV',
-  solo_queue_lp: '0',
-}
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -74,110 +51,61 @@ function statusVariant(status: string): 'teal' | 'muted' | 'danger' {
   return 'danger'
 }
 
-// ── Player form modal ─────────────────────────────────────────────
+// ── Import via Riot ID panel ──────────────────────────────────────
 
-function PlayerFormPanel({
-  initial,
-  title,
+function ImportRiotPanel({
   onSubmit,
   onCancel,
   isPending,
   error,
 }: {
-  initial: PlayerForm
-  title: string
-  onSubmit: (form: PlayerForm) => void
+  onSubmit: (riotId: string, role: string) => void
   onCancel: () => void
   isPending: boolean
   error?: string | null
 }) {
   const { t } = useLanguage()
-  const [form, setForm] = useState<PlayerForm>(initial)
-  const isSingleTier = SINGLE_TIER.includes(form.solo_queue_tier)
+  const [riotId, setRiotId] = useState('')
+  const [role, setRole] = useState('top')
 
   const inputClass =
     'w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none'
 
   return (
-    <RetroPanel title={title}>
+    <RetroPanel title={t('roster.import.title')}>
+      <p className="text-xs text-text-muted mb-4">{t('roster.import.desc')}</p>
       <form
-        onSubmit={(e) => { e.preventDefault(); onSubmit(form) }}
+        onSubmit={(e) => { e.preventDefault(); onSubmit(riotId.trim(), role) }}
         className="grid grid-cols-2 gap-4"
       >
         <div className="space-y-1">
-          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">{t('roster.form.realName')}</label>
-          <input
-            type="text"
-            value={form.real_name}
-            onChange={(e) => setForm({ ...form, real_name: e.target.value })}
-            placeholder={t('roster.form.realNamePlaceholder')}
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">{t('roster.form.summonerName')}</label>
+          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
+            {t('roster.import.riotId')}
+          </label>
           <input
             type="text"
             required
-            value={form.summoner_name}
-            onChange={(e) => setForm({ ...form, summoner_name: e.target.value })}
-            placeholder={t('roster.form.summonerPlaceholder')}
+            value={riotId}
+            onChange={(e) => setRiotId(e.target.value)}
+            placeholder={t('roster.import.riotIdPlaceholder')}
             className={inputClass}
           />
+          <p className="text-xs text-text-muted">{t('roster.import.riotIdHint')}</p>
         </div>
 
         <div className="space-y-1">
-          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">{t('roster.form.role')}</label>
+          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
+            {t('roster.import.role')}
+          </label>
           <select
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value })}
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
             className={inputClass}
           >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>
+            {['top', 'jungle', 'mid', 'adc', 'support'].map((r) => (
+              <option key={r} value={r}>{ROLE_LABEL[r]}</option>
             ))}
           </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">{t('roster.form.tier')}</label>
-          <select
-            value={form.solo_queue_tier}
-            onChange={(e) => setForm({ ...form, solo_queue_tier: e.target.value })}
-            className={inputClass}
-          >
-            {TIERS.map((t) => (
-              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
-          </select>
-        </div>
-
-        {!isSingleTier && (
-          <div className="space-y-1">
-            <label className="font-mono text-xs uppercase tracking-widest text-text-muted">{t('roster.form.rank')}</label>
-            <select
-              value={form.solo_queue_rank}
-              onChange={(e) => setForm({ ...form, solo_queue_rank: e.target.value })}
-              className={inputClass}
-            >
-              {RANKS.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="space-y-1">
-          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">{t('roster.form.lp')}</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={form.solo_queue_lp}
-            onChange={(e) => setForm({ ...form, solo_queue_lp: e.target.value })}
-            className={inputClass}
-          />
         </div>
 
         <div className="col-span-2 flex items-center justify-between pt-1">
@@ -187,7 +115,7 @@ function PlayerFormPanel({
               {t('roster.cancel')}
             </Button>
             <Button type="submit" variant="primary" size="sm" loading={isPending}>
-              {t('common.save')}
+              {t('roster.import.submit')}
             </Button>
           </div>
         </div>
@@ -203,7 +131,7 @@ export default function RosterPage() {
   const { t } = useLanguage()
   const queryClient = useQueryClient()
 
-  const [showAdd, setShowAdd] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery<PlayersResponse>({
@@ -212,13 +140,35 @@ export default function RosterPage() {
     enabled: !!token,
   })
 
-  const addPlayer = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/players', body, { token: token! }),
+  // Import via Riot ID: POST /players/import { summoner_name: "Name#TAG", role }
+  const importFromRiot = useMutation({
+    mutationFn: ({ summoner_name, role }: { summoner_name: string; role: string }) =>
+      api.post('/players/import', { summoner_name, role }, { token: token! }),
     onSuccess: () => {
-      toast.success(t('roster.added'))
+      toast.success(t('roster.import.success'))
       queryClient.invalidateQueries({ queryKey: ['players'] })
-      setShowAdd(false)
+      setShowImport(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  // Sync individual: POST /players/:id/sync_from_riot
+  const syncPlayer = useMutation({
+    mutationFn: (id: string) =>
+      api.post(`/players/${id}/sync_from_riot`, {}, { token: token! }),
+    onSuccess: () => {
+      toast.success(t('roster.sync.success'))
+      queryClient.invalidateQueries({ queryKey: ['players'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  // Sync all: POST /players/bulk_sync
+  const syncAll = useMutation({
+    mutationFn: () => api.post('/players/bulk_sync', {}, { token: token! }),
+    onSuccess: () => {
+      toast.success(t('roster.syncAll.success'))
+      queryClient.invalidateQueries({ queryKey: ['players'] })
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -246,70 +196,51 @@ export default function RosterPage() {
   const toggleStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/players/${id}`, { status }, { token: token! }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['players'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['players'] }),
     onError: (err: Error) => toast.error(err.message),
   })
-
-  function handleAdd(form: PlayerForm) {
-    addPlayer.mutate({
-      real_name: form.real_name || undefined,
-      summoner_name: form.summoner_name,
-      role: form.role,
-      solo_queue_tier: form.solo_queue_tier,
-      solo_queue_rank: SINGLE_TIER.includes(form.solo_queue_tier) ? undefined : form.solo_queue_rank,
-      solo_queue_lp: Number(form.solo_queue_lp),
-    })
-  }
-
-  function handleUpdate(id: string, form: PlayerForm) {
-    updatePlayer.mutate({
-      id,
-      body: {
-        real_name: form.real_name || undefined,
-        summoner_name: form.summoner_name,
-        role: form.role,
-        solo_queue_tier: form.solo_queue_tier,
-        solo_queue_rank: SINGLE_TIER.includes(form.solo_queue_tier) ? undefined : form.solo_queue_rank,
-        solo_queue_lp: Number(form.solo_queue_lp),
-      },
-    })
-  }
 
   const players = (data?.data?.players ?? []).sort(
     (a, b) => (ROLE_ORDER.indexOf(a.role) ?? 99) - (ROLE_ORDER.indexOf(b.role) ?? 99)
   )
 
-  const active = players.filter((p) => p.status === 'active')
+  const active   = players.filter((p) => p.status === 'active')
   const inactive = players.filter((p) => p.status !== 'active')
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-mono text-xl font-bold text-text-primary">{t('roster.title')}</h1>
           <p className="text-sm text-text-muted">{t('roster.subtitle')}</p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => { setShowAdd((v) => !v); setEditingId(null) }}
-        >
-          {showAdd ? t('roster.cancel') : t('roster.add')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={syncAll.isPending}
+            onClick={() => syncAll.mutate()}
+          >
+            ↻ {t('roster.syncAll')}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => { setShowImport((v) => !v); setEditingId(null) }}
+          >
+            {showImport ? t('roster.cancel') : t('roster.import')}
+          </Button>
+        </div>
       </div>
 
-      {/* Add form */}
-      {showAdd && (
-        <PlayerFormPanel
-          title={t('roster.form.new')}
-          initial={EMPTY_FORM}
-          onSubmit={handleAdd}
-          onCancel={() => setShowAdd(false)}
-          isPending={addPlayer.isPending}
-          error={addPlayer.isError ? (addPlayer.error as Error).message : null}
+      {/* Import panel */}
+      {showImport && (
+        <ImportRiotPanel
+          onSubmit={(riotId, role) => importFromRiot.mutate({ summoner_name: riotId, role })}
+          onCancel={() => setShowImport(false)}
+          isPending={importFromRiot.isPending}
+          error={importFromRiot.isError ? (importFromRiot.error as Error).message : null}
         />
       )}
 
@@ -323,15 +254,14 @@ export default function RosterPage() {
       ) : isError ? (
         <p className="py-8 text-center text-sm text-danger">{t('roster.error')}</p>
       ) : players.length === 0 ? (
-        <p className="py-8 text-center text-sm text-text-muted">
-          {t('roster.empty')}{' '}
-          <button onClick={() => setShowAdd(true)} className="text-gold hover:underline">
-            {t('roster.emptyLink')}
-          </button>
-        </p>
+        <div className="py-12 text-center space-y-3">
+          <p className="text-sm text-text-muted">{t('roster.empty')}</p>
+          <Button variant="primary" size="sm" onClick={() => setShowImport(true)}>
+            {t('roster.import')}
+          </Button>
+        </div>
       ) : (
         <div className="space-y-6">
-          {/* Active roster */}
           {active.length > 0 && (
             <RetroPanel title={t('roster.active', { count: String(active.length) })}>
               <div className="space-y-2">
@@ -340,23 +270,21 @@ export default function RosterPage() {
                     key={player.id}
                     player={player}
                     isEditing={editingId === player.id}
-                    onEdit={() => { setEditingId(player.id); setShowAdd(false) }}
+                    onEdit={() => { setEditingId(player.id); setShowImport(false) }}
                     onCancelEdit={() => setEditingId(null)}
-                    onUpdate={(form) => handleUpdate(player.id, form)}
+                    onUpdate={(role) => updatePlayer.mutate({ id: player.id, body: { role } })}
                     onRemove={() => removePlayer.mutate(player.id)}
-                    onToggleStatus={() =>
-                      toggleStatus.mutate({ id: player.id, status: 'inactive' })
-                    }
+                    onToggleStatus={() => toggleStatus.mutate({ id: player.id, status: 'inactive' })}
+                    onSync={() => syncPlayer.mutate(player.id)}
                     updatePending={updatePlayer.isPending}
                     removePending={removePlayer.isPending}
-                    updateError={updatePlayer.isError ? (updatePlayer.error as Error).message : null}
+                    syncPending={syncPlayer.isPending && syncPlayer.variables === player.id}
                   />
                 ))}
               </div>
             </RetroPanel>
           )}
 
-          {/* Inactive roster */}
           {inactive.length > 0 && (
             <RetroPanel title={t('roster.inactive', { count: String(inactive.length) })}>
               <div className="space-y-2">
@@ -365,16 +293,15 @@ export default function RosterPage() {
                     key={player.id}
                     player={player}
                     isEditing={editingId === player.id}
-                    onEdit={() => { setEditingId(player.id); setShowAdd(false) }}
+                    onEdit={() => { setEditingId(player.id); setShowImport(false) }}
                     onCancelEdit={() => setEditingId(null)}
-                    onUpdate={(form) => handleUpdate(player.id, form)}
+                    onUpdate={(role) => updatePlayer.mutate({ id: player.id, body: { role } })}
                     onRemove={() => removePlayer.mutate(player.id)}
-                    onToggleStatus={() =>
-                      toggleStatus.mutate({ id: player.id, status: 'active' })
-                    }
+                    onToggleStatus={() => toggleStatus.mutate({ id: player.id, status: 'active' })}
+                    onSync={() => syncPlayer.mutate(player.id)}
                     updatePending={updatePlayer.isPending}
                     removePending={removePlayer.isPending}
-                    updateError={updatePlayer.isError ? (updatePlayer.error as Error).message : null}
+                    syncPending={syncPlayer.isPending && syncPlayer.variables === player.id}
                   />
                 ))}
               </div>
@@ -396,45 +323,51 @@ function PlayerCard({
   onUpdate,
   onRemove,
   onToggleStatus,
+  onSync,
   updatePending,
   removePending,
-  updateError,
+  syncPending,
 }: {
   player: Player
   isEditing: boolean
   onEdit: () => void
   onCancelEdit: () => void
-  onUpdate: (form: PlayerForm) => void
+  onUpdate: (role: string) => void
   onRemove: () => void
   onToggleStatus: () => void
+  onSync: () => void
   updatePending: boolean
   removePending: boolean
-  updateError: string | null
+  syncPending: boolean
 }) {
   const { t } = useLanguage()
   const rank = formatRank(player.solo_queue_tier, player.solo_queue_rank, player.solo_queue_lp)
   const role = ROLE_LABEL[player.role] ?? player.role
 
+  // Inline role editor — only thing that makes sense to change manually
+  // Everything else (tier, rank, lp, summoner_name) comes from Riot sync
   if (isEditing) {
-    const initial: PlayerForm = {
-      real_name: player.real_name ?? '',
-      summoner_name: player.summoner_name ?? '',
-      role: player.role ?? 'top',
-      solo_queue_tier: player.solo_queue_tier ?? 'gold',
-      solo_queue_rank: player.solo_queue_rank ?? 'IV',
-      solo_queue_lp: String(player.solo_queue_lp ?? 0),
-    }
     return (
-      <PlayerFormPanel
-        title={t('roster.form.edit', { name: player.summoner_name })}
-        initial={initial}
-        onSubmit={onUpdate}
-        onCancel={onCancelEdit}
-        isPending={updatePending}
-        error={updateError}
-      />
+      <div className="rounded-sm border border-gold/20 bg-navy-deep px-4 py-3 flex items-center gap-4">
+        <span className="font-mono text-sm text-text-primary">{player.summoner_name}</span>
+        <select
+          defaultValue={player.role}
+          onChange={(e) => onUpdate(e.target.value)}
+          disabled={updatePending}
+          className="rounded-sm border border-gold/20 bg-navy-deep px-2 py-1 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
+        >
+          {['top', 'jungle', 'mid', 'adc', 'support', 'fill'].map((r) => (
+            <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+          ))}
+        </select>
+        <Button variant="ghost" size="sm" onClick={onCancelEdit}>{t('roster.cancel')}</Button>
+      </div>
     )
   }
+
+  const syncedAt = player.last_sync_at
+    ? new Date(player.last_sync_at).toLocaleDateString()
+    : null
 
   return (
     <div className="flex items-center justify-between rounded-sm border border-gold/10 bg-navy-deep px-4 py-3">
@@ -446,6 +379,7 @@ function PlayerCard({
           </div>
           <div className="text-xs text-text-muted">
             {player.summoner_name} — {rank}
+            {syncedAt && <span className="ml-2 opacity-50">· sync {syncedAt}</span>}
           </div>
         </div>
       </div>
@@ -453,22 +387,16 @@ function PlayerCard({
         <RetroBadge variant={statusVariant(player.status)}>
           {player.status === 'active' ? t('common.active') : t('common.inactive')}
         </RetroBadge>
+        <Button variant="ghost" size="sm" loading={syncPending} onClick={onSync}>
+          ↻ {t('roster.sync')}
+        </Button>
         <Button variant="outline" size="sm" onClick={onEdit}>
           {t('roster.edit')}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onToggleStatus}
-        >
+        <Button variant="ghost" size="sm" onClick={onToggleStatus}>
           {player.status === 'active' ? t('roster.deactivate') : t('roster.activate')}
         </Button>
-        <Button
-          variant="danger"
-          size="sm"
-          loading={removePending}
-          onClick={onRemove}
-        >
+        <Button variant="danger" size="sm" loading={removePending} onClick={onRemove}>
           {t('roster.remove')}
         </Button>
       </div>
