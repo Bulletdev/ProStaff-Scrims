@@ -22,6 +22,7 @@ interface RequestsResponse {
 const ROLE_ICON: Record<string, string> = {
   top: 'TOP', jungle: 'JG', mid: 'MID', adc: 'ADC', support: 'SUP',
 }
+const ROLE_ORDER = ['top', 'jungle', 'mid', 'adc', 'support']
 
 const DRAFT_LABEL: Record<string, string> = {
   bo1: '1 Game', md3: 'MD3', md5: 'MD5', md3_fearless: 'MD3 Fearless',
@@ -285,7 +286,7 @@ export default function RequestsPage() {
                           {t('requests.roster')}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {counterpart.roster!.map((p: RosterPlayer) => (
+                          {[...counterpart.roster!].sort((a, b) => (ROLE_ORDER.indexOf(a.role) ?? 99) - (ROLE_ORDER.indexOf(b.role) ?? 99)).map((p: RosterPlayer) => (
                             <div
                               key={p.summoner_name}
                               className="flex items-center gap-1.5 rounded-sm border border-gold/15 bg-navy-deep px-2 py-1"
