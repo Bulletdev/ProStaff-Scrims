@@ -98,6 +98,7 @@ type QueueStatus = 'open' | 'check_in'
 type FormationMode = 'auto' | 'captain_draft'
 type TeamColor = 'none' | 'blue' | 'red'
 type InhouseStatus = 'waiting' | 'draft' | 'in_progress' | 'done'
+// Note: 'draft' is the captain draft phase (backend status: 'draft')
 type ActiveTab = 'session' | 'ladder' | 'history'
 
 interface QueueEntry {
@@ -130,6 +131,9 @@ interface DraftState {
   blue_captain_id: string
   red_captain_id: string
   pick_number: number
+  current_pick_team?: 'blue' | 'red' | null
+  picks_remaining?: number
+  draft_complete?: boolean
 }
 
 interface Inhouse {
@@ -194,11 +198,29 @@ function useCountdown(deadline?: string): number {
   return secs
 }
 
+// ── Tier point system ──────────────────────────────────────────────────────
+// Numeric MMR proxy used for display and captain selection algorithm
+const TIER_POINTS: Record<string, number> = {
+  // Org tiers
+  tier_1_professional: 1800, professional: 1800,
+  tier_2_semi_pro: 1200, semi_pro: 1200,
+  tier_3_amateur: 800, amateur: 800,
+  // Solo Queue tiers (fallback if tier_snapshot carries SQ rank)
+  challenger: 2800, grandmaster: 2600, master: 2400,
+  diamond: 2000, emerald: 1800, platinum: 1600,
+  gold: 1400, silver: 1200, bronze: 1000, iron: 800,
+}
+
+function tierToPoints(tier: string): number {
+  return TIER_POINTS[tier.toLowerCase()] ?? 1000
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function tierBadge(t: string) {
-  if (t.includes('professional')) return 'Pro'
-  if (t.includes('semi')) return 'Semi'
-  return 'Amateur'
+  const pts = tierToPoints(t)
+  if (t.includes('professional')) return `Pro · ${pts}`
+  if (t.includes('semi')) return `Semi · ${pts}`
+  return `Amateur · ${pts}`
 }
 function tierColor(t: string) {
   if (t.includes('professional')) return GOLD
@@ -219,6 +241,60 @@ function RoleIcon({ role, size = 16 }: { role?: string; size?: number }) {
 }
 function roleLabel(role?: string) {
   return ROLES.find(r => r.key === role)?.label ?? role ?? '—'
+}
+
+// ── Captain selection — menor desvio padrão por role ───────────────────────
+// Para cada role com 2 jogadores, calcula o desvio padrão dos pontos.
+// A role com menor desvio (jogadores mais próximos em nível) fornece os capitães,
+// garantindo o draft mais equilibrado possível.
+
+function stdDev(values: number[]): number {
+  if (values.length < 2) return 0
+  const mean = values.reduce((s, v) => s + v, 0) / values.length
+  return Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length)
+}
+
+interface CaptainSuggestion {
+  blueCaptainId: string
+  redCaptainId:  string
+  blueName:  string
+  redName:   string
+  bluePoints: number
+  redPoints:  number
+  roleKey:   string
+  deviation: number
+}
+
+function selectCaptainsByStdDev(entries: QueueEntry[]): CaptainSuggestion | null {
+  const rolesWithTwo = ROLES
+    .map(r => ({ key: r.key, players: entries.filter(e => e.role === r.key) }))
+    .filter(r => r.players.length === 2)
+
+  if (rolesWithTwo.length === 0) return null
+
+  const best = rolesWithTwo
+    .map(r => {
+      const pts = r.players.map(p => tierToPoints(p.tier_snapshot))
+      return { ...r, pts, deviation: stdDev(pts) }
+    })
+    .reduce((min, cur) => cur.deviation < min.deviation ? cur : min)
+
+  const [p1, p2] = best.players
+  const pts1 = tierToPoints(p1.tier_snapshot)
+  const pts2 = tierToPoints(p2.tier_snapshot)
+  const blue = pts1 >= pts2 ? p1 : p2
+  const red  = blue === p1 ? p2 : p1
+
+  return {
+    blueCaptainId: blue.player_id,
+    redCaptainId:  red.player_id,
+    blueName:   blue.player_name,
+    redName:    red.player_name,
+    bluePoints: tierToPoints(blue.tier_snapshot),
+    redPoints:  tierToPoints(red.tier_snapshot),
+    roleKey:    best.key,
+    deviation:  best.deviation,
+  }
 }
 
 // ── Shared: Scoreboard ─────────────────────────────────────────────────────
@@ -504,7 +580,12 @@ function QueueView({ queue, allPlayers, onAdd, onRemove, onStartCheckin, onStart
                     }}>
                       {entry ? (
                         <>
-                          <span style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>{entry.player_name}</span>
+                          <div>
+                            <div style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>{entry.player_name}</div>
+                            <div style={{ fontSize: 10, color: tierColor(entry.tier_snapshot), fontFamily: 'Share Tech Mono, monospace', marginTop: 1 }}>
+                              {tierToPoints(entry.tier_snapshot)} pts
+                            </div>
+                          </div>
                           <button
                             onClick={() => onRemove(entry.player_id)}
                             style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.6)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
@@ -560,45 +641,86 @@ function QueueView({ queue, allPlayers, onAdd, onRemove, onStartCheckin, onStart
       )}
 
       {/* Formation + Start (when full) */}
-      {isFull && (
-        <RetroPanel title={t('inhouse.queue.formation')}>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-            {(['auto', 'captain_draft'] as FormationMode[]).map(mode => (
-              <button
-                key={mode}
-                onClick={() => setFormationMode(mode)}
-                style={{
-                  flex: 1, minWidth: 140,
-                  padding: '14px 16px',
-                  background: formationMode === mode ? GOLD_FAINT : 'rgba(255,255,255,0.02)',
-                  border: `2px solid ${formationMode === mode ? GOLD : 'rgba(255,255,255,0.1)'}`,
-                  borderRadius: 4,
-                  color: formationMode === mode ? GOLD : 'rgba(255,255,255,0.5)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  fontFamily: 'Share Tech Mono, monospace',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                  {mode === 'auto' ? t('inhouse.formation.auto') : t('inhouse.formation.draft')}
+      {isFull && (() => {
+        const captainSuggestion = formationMode === 'captain_draft'
+          ? selectCaptainsByStdDev(queue.entries)
+          : null
+        return (
+          <RetroPanel title={t('inhouse.queue.formation')}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+              {(['auto', 'captain_draft'] as FormationMode[]).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => setFormationMode(mode)}
+                  style={{
+                    flex: 1, minWidth: 140,
+                    padding: '14px 16px',
+                    background: formationMode === mode ? GOLD_FAINT : 'rgba(255,255,255,0.02)',
+                    border: `2px solid ${formationMode === mode ? GOLD : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 4,
+                    color: formationMode === mode ? GOLD : 'rgba(255,255,255,0.5)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: 'Share Tech Mono, monospace',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                    {mode === 'auto' ? t('inhouse.formation.auto') : t('inhouse.formation.draft')}
+                  </div>
+                  <div style={{ fontSize: 10, opacity: 0.7, lineHeight: 1.5 }}>
+                    {mode === 'auto' ? t('inhouse.formation.autoDesc') : t('inhouse.formation.draftDesc')}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Captain suggestion — shown when captain_draft is selected */}
+            {captainSuggestion && (
+              <div style={{
+                marginBottom: 14,
+                padding: '12px 14px',
+                background: 'rgba(192,132,252,0.06)',
+                border: '1px solid rgba(192,132,252,0.25)',
+                borderRadius: 3,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontFamily: 'Share Tech Mono, monospace', color: '#c084fc', letterSpacing: '0.08em' }}>
+                    CAPITÃES SUGERIDOS
+                  </span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'Share Tech Mono, monospace' }}>
+                    · {roleLabel(captainSuggestion.roleKey)} · σ = {captainSuggestion.deviation.toFixed(0)}
+                  </span>
                 </div>
-                <div style={{ fontSize: 10, opacity: 0.7, lineHeight: 1.5 }}>
-                  {mode === 'auto' ? t('inhouse.formation.autoDesc') : t('inhouse.formation.draftDesc')}
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#60a5fa', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>{captainSuggestion.blueName}</span>
+                    <span style={{ fontSize: 11, color: GOLD, fontFamily: 'Share Tech Mono, monospace' }}>{captainSuggestion.bluePoints} pts</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f87171', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>{captainSuggestion.redName}</span>
+                    <span style={{ fontSize: 11, color: GOLD, fontFamily: 'Share Tech Mono, monospace' }}>{captainSuggestion.redPoints} pts</span>
+                  </div>
                 </div>
-              </button>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Button variant="outline" size="sm" onClick={onStartCheckin}>
-              {t('inhouse.queue.startCheckin')}
-            </Button>
-            <Button variant="primary" size="sm" loading={isStarting} onClick={() => onStartSession(formationMode)}>
-              {t('inhouse.queue.startSession')}
-            </Button>
-          </div>
-        </RetroPanel>
-      )}
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'Share Tech Mono, monospace', marginTop: 6 }}>
+                  Role mais balanceada: menor diferença de pontos entre os 2 jogadores da lane.
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <Button variant="outline" size="sm" onClick={onStartCheckin}>
+                {t('inhouse.queue.startCheckin')}
+              </Button>
+              <Button variant="primary" size="sm" loading={isStarting} onClick={() => onStartSession(formationMode)}>
+                {t('inhouse.queue.startSession')}
+              </Button>
+            </div>
+          </RetroPanel>
+        )
+      })()}
 
       {/* Close queue */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -774,7 +896,20 @@ function WaitingState({ inhouse, token }: { inhouse: Inhouse; token: string }) {
   })
 
   const draftMutation = useMutation({
-    mutationFn: () => api.post(`/inhouse/inhouses/${inhouse.id}/start_draft`, {}, { token }),
+    mutationFn: () => {
+      // For manual sessions (no role data), select captains by closest pts to mean
+      const pts = inhouse.participations.map(p => tierToPoints(p.tier_snapshot))
+      const mean = pts.reduce((s, v) => s + v, 0) / pts.length
+      const sorted = [...inhouse.participations].sort(
+        (a, b) => Math.abs(tierToPoints(a.tier_snapshot) - mean) - Math.abs(tierToPoints(b.tier_snapshot) - mean)
+      )
+      const blueCapId = sorted[0]?.player_id
+      const redCapId  = sorted[1]?.player_id
+      return api.post(`/inhouse/inhouses/${inhouse.id}/start_draft`, {
+        blue_captain_id: blueCapId,
+        red_captain_id:  redCapId,
+      }, { token })
+    },
     onSuccess: () => {
       toast.success(t('inhouse.toast.draftStarted'))
       queryClient.invalidateQueries({ queryKey: ['inhouse-active'] })
@@ -1190,20 +1325,25 @@ function SessionTab({ token }: { token: string }) {
   })
 
   // Start session from queue: create → add all players → balance or draft
+  // For captain_draft: captain IDs are computed client-side via stdDev algorithm
   const startSessionMutation = useMutation({
     mutationFn: async ({ entries, formation_mode }: { entries: QueueEntry[]; formation_mode: FormationMode }) => {
       // 1. Create session
       const res = await api.post<ActiveRes>('/inhouse/inhouses', {}, { token })
       const sessionId = res.data.inhouse!.id
-      // 2. Add all checked-in (or all) players
+      // 2. Add all players
       for (const entry of entries) {
         await api.post(`/inhouse/inhouses/${sessionId}/join`, { player_id: entry.player_id }, { token })
       }
-      // 3. Balance or start draft
+      // 3. Balance or start draft (with computed captain IDs)
       if (formation_mode === 'auto') {
         await api.post(`/inhouse/inhouses/${sessionId}/balance_teams`, {}, { token })
       } else {
-        await api.post(`/inhouse/inhouses/${sessionId}/start_draft`, {}, { token })
+        const suggestion = selectCaptainsByStdDev(entries)
+        await api.post(`/inhouse/inhouses/${sessionId}/start_draft`, {
+          blue_captain_id: suggestion?.blueCaptainId,
+          red_captain_id:  suggestion?.redCaptainId,
+        }, { token })
       }
     },
     onSuccess: () => {
