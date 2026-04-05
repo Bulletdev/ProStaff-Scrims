@@ -113,7 +113,11 @@ interface QueueState {
   id: string
   status: QueueStatus
   check_in_deadline?: string
+  total_entries: number
+  total_slots: number
+  full: boolean
   entries: QueueEntry[]
+  entries_by_role?: Record<string, QueueEntry[]>
 }
 
 interface Participation {
@@ -1290,20 +1294,23 @@ function DoneState({ inhouse, onCreate, isPending }: {
 }
 
 // ── Session tab ────────────────────────────────────────────────────────────
-// Queue is managed entirely client-side. Backend is only called when starting
-// the session, using existing endpoints: /inhouse/inhouses + /join + /balance_teams|/start_draft
+// Queue is managed server-side so the Discord bot and web dashboard share state.
 function SessionTab({ token }: { token: string }) {
   const { t } = useLanguage()
   const queryClient = useQueryClient()
-
-  // Local queue state — no backend endpoints needed for queue management
-  const [localQueue, setLocalQueue] = useState<QueueState | null>(null)
 
   const { data: activeData, isLoading: loadingActive, isError: errorActive } = useQuery<ActiveRes>({
     queryKey: ['inhouse-active', token],
     queryFn: () => api.get('/inhouse/inhouses/active', { token }),
     enabled: !!token,
     refetchInterval: 10_000,
+  })
+
+  const { data: queueData, isLoading: loadingQueue } = useQuery<QueueRes>({
+    queryKey: ['inhouse-queue', token],
+    queryFn: () => api.get('/inhouse/queue/status', { token }),
+    enabled: !!token && !activeData?.data?.inhouse,
+    refetchInterval: 5_000,
   })
 
   const { data: playersData } = useQuery<PlayersRes>({
@@ -1313,80 +1320,72 @@ function SessionTab({ token }: { token: string }) {
   })
 
   const allPlayers = playersData?.data?.players ?? []
+  const invalidateQueue = () => queryClient.invalidateQueries({ queryKey: ['inhouse-queue'] })
+  const invalidateActive = () => queryClient.invalidateQueries({ queryKey: ['inhouse-active'] })
 
-  // Manual session creation
+  // ── Queue mutations ───────────────────────────────────────────────────────
+
+  const openQueueMutation = useMutation({
+    mutationFn: () => api.post('/inhouse/queue/open', {}, { token }),
+    onSuccess: () => { toast.success(t('inhouse.toast.queueOpened')); invalidateQueue() },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const addToQueueMutation = useMutation({
+    mutationFn: (entry: { player_id: string; role: string }) =>
+      api.post('/inhouse/queue/join', entry, { token }),
+    onSuccess: () => invalidateQueue(),
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const removeFromQueueMutation = useMutation({
+    mutationFn: (player_id: string) =>
+      api.post('/inhouse/queue/leave', { player_id }, { token }),
+    onSuccess: () => invalidateQueue(),
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const startCheckinMutation = useMutation({
+    mutationFn: () => api.post('/inhouse/queue/start_checkin', {}, { token }),
+    onSuccess: () => { toast.success(t('inhouse.toast.checkinStarted')); invalidateQueue() },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const checkinMutation = useMutation({
+    mutationFn: (player_id: string) =>
+      api.post('/inhouse/queue/checkin', { player_id }, { token }),
+    onSuccess: () => invalidateQueue(),
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const startSessionMutation = useMutation({
+    mutationFn: (formation_mode: FormationMode) =>
+      api.post('/inhouse/queue/start_session', { formation_mode }, { token }),
+    onSuccess: () => {
+      toast.success(t('inhouse.toast.sessionStarted'))
+      invalidateQueue()
+      invalidateActive()
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const closeQueueMutation = useMutation({
+    mutationFn: () => api.post('/inhouse/queue/close', {}, { token }),
+    onSuccess: () => { toast.success(t('inhouse.toast.queueClosed')); invalidateQueue() },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  // Manual session creation (no queue)
   const createMutation = useMutation({
     mutationFn: () => api.post('/inhouse/inhouses', {}, { token }),
     onSuccess: () => {
       toast.success(t('inhouse.toast.created'))
-      queryClient.invalidateQueries({ queryKey: ['inhouse-active'] })
+      invalidateActive()
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
-  // Start session from queue: create → add all players → balance or draft
-  // For captain_draft: captain IDs are computed client-side via stdDev algorithm
-  const startSessionMutation = useMutation({
-    mutationFn: async ({ entries, formation_mode }: { entries: QueueEntry[]; formation_mode: FormationMode }) => {
-      // 1. Create session
-      const res = await api.post<ActiveRes>('/inhouse/inhouses', {}, { token })
-      const sessionId = res.data.inhouse!.id
-      // 2. Add all players
-      for (const entry of entries) {
-        await api.post(`/inhouse/inhouses/${sessionId}/join`, { player_id: entry.player_id }, { token })
-      }
-      // 3. Balance or start draft (with computed captain IDs)
-      if (formation_mode === 'auto') {
-        await api.post(`/inhouse/inhouses/${sessionId}/balance_teams`, {}, { token })
-      } else {
-        const suggestion = selectCaptainsByStdDev(entries)
-        await api.post(`/inhouse/inhouses/${sessionId}/start_draft`, {
-          blue_captain_id: suggestion?.blueCaptainId,
-          red_captain_id:  suggestion?.redCaptainId,
-        }, { token })
-      }
-    },
-    onSuccess: () => {
-      toast.success(t('inhouse.toast.sessionStarted'))
-      setLocalQueue(null)
-      queryClient.invalidateQueries({ queryKey: ['inhouse-active'] })
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
-
-  // Queue callbacks
-  const openQueue = () =>
-    setLocalQueue({ id: 'local', status: 'open', entries: [] })
-
-  const addToQueue = (entry: QueueEntry) =>
-    setLocalQueue(q => q ? { ...q, entries: [...q.entries, entry] } : q)
-
-  const removeFromQueue = (player_id: string) =>
-    setLocalQueue(q => q ? { ...q, entries: q.entries.filter(e => e.player_id !== player_id) } : q)
-
-  const startCheckin = () =>
-    setLocalQueue(q => q ? {
-      ...q,
-      status: 'check_in',
-      check_in_deadline: new Date(Date.now() + 60_000).toISOString(),
-    } : q)
-
-  const checkinPlayer = (player_id: string) =>
-    setLocalQueue(q => q ? {
-      ...q,
-      entries: q.entries.map(e => e.player_id === player_id ? { ...e, checked_in: true } : e),
-    } : q)
-
-  const startSession = (formation_mode: FormationMode) => {
-    if (!localQueue) return
-    const players = localQueue.status === 'check_in'
-      ? localQueue.entries.filter(e => e.checked_in)
-      : localQueue.entries
-    if (players.length < 2) { toast.error('Adicione pelo menos 2 jogadores'); return }
-    startSessionMutation.mutate({ entries: players, formation_mode })
-  }
-
-  if (loadingActive) return <LoadingSkeleton />
+  if (loadingActive || loadingQueue) return <LoadingSkeleton />
 
   if (errorActive) {
     return (
@@ -1399,8 +1398,9 @@ function SessionTab({ token }: { token: string }) {
   }
 
   const inhouse = activeData?.data?.inhouse ?? null
+  const queue   = queueData?.data?.queue ?? null
 
-  // Active session takes priority over local queue
+  // Active session takes priority
   if (inhouse) {
     if (inhouse.status === 'waiting')     return <WaitingState inhouse={inhouse} token={token} />
     if (inhouse.status === 'draft')       return <CaptainDraftView inhouse={inhouse} token={token} />
@@ -1414,27 +1414,27 @@ function SessionTab({ token }: { token: string }) {
     )
   }
 
-  // Local queue active
-  if (localQueue) {
-    if (localQueue.status === 'check_in') {
+  // Server-side queue active
+  if (queue) {
+    if (queue.status === 'check_in') {
       return (
         <CheckInView
-          queue={localQueue}
-          onCheckin={checkinPlayer}
-          onStartSession={startSession}
+          queue={queue}
+          onCheckin={(player_id) => checkinMutation.mutate(player_id)}
+          onStartSession={(fm) => startSessionMutation.mutate(fm)}
           isStarting={startSessionMutation.isPending}
         />
       )
     }
     return (
       <QueueView
-        queue={localQueue}
+        queue={queue}
         allPlayers={allPlayers}
-        onAdd={addToQueue}
-        onRemove={removeFromQueue}
-        onStartCheckin={startCheckin}
-        onStartSession={startSession}
-        onClose={() => setLocalQueue(null)}
+        onAdd={(entry) => addToQueueMutation.mutate(entry)}
+        onRemove={(player_id) => removeFromQueueMutation.mutate(player_id)}
+        onStartCheckin={() => startCheckinMutation.mutate()}
+        onStartSession={(fm) => startSessionMutation.mutate(fm)}
+        onClose={() => closeQueueMutation.mutate()}
         isStarting={startSessionMutation.isPending}
       />
     )
@@ -1443,10 +1443,10 @@ function SessionTab({ token }: { token: string }) {
   // Nothing active
   return (
     <EmptyState
-      onCreateQueue={openQueue}
+      onCreateQueue={() => openQueueMutation.mutate()}
       onCreateManual={() => createMutation.mutate()}
       isPendingManual={createMutation.isPending}
-      isPendingQueue={false}
+      isPendingQueue={openQueueMutation.isPending}
     />
   )
 }
