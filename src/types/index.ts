@@ -75,6 +75,9 @@ export interface MatchSuggestion {
     start_hour: number
     end_hour: number
     timezone: string
+    focus_area?: string
+    draft_type?: string
+    tier_preference?: string
   }
 }
 

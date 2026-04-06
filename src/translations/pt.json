@@ -190,6 +190,8 @@
   "matchmaking.invite": "Convidar",
   "matchmaking.close": "Fechar",
   "matchmaking.score": "score {{value}}",
+  "matchmaking.avgTier": "~{{tier}}",
+  "matchmaking.form.window": "Escolha um horário",
   "matchmaking.form.message": "Mensagem",
   "matchmaking.form.messagePlaceholder": "Mensagem para o time adversário...",
   "matchmaking.form.proposedAt": "Data Proposta",

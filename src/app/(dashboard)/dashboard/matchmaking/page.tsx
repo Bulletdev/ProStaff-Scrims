@@ -26,6 +26,7 @@ export default function MatchmakingPage() {
   const [regionFilter, setRegionFilter] = useState('')
   const [openInviteId, setOpenInviteId] = useState<string | null>(null)
   const [inviteForm, setInviteForm] = useState({ message: '', proposed_at: '', format: 'md3' })
+  const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery<SuggestionsResponse>({
     queryKey: ['matchmaking-suggestions', token],
@@ -47,6 +48,49 @@ export default function MatchmakingPage() {
   const filtered = regionFilter
     ? suggestions.filter((s) => s.organization.region === regionFilter)
     : suggestions
+
+  // Group windows by org, keeping the highest score
+  const grouped = Object.values(
+    filtered.reduce<Record<string, { organization: MatchSuggestion['organization']; score: number; windows: MatchSuggestion['availability_window'][] }>>(
+      (acc, s) => {
+        const id = s.organization.id
+        if (!acc[id]) {
+          acc[id] = { organization: s.organization, score: s.score, windows: [] }
+        } else if (s.score > acc[id].score) {
+          acc[id].score = s.score
+        }
+        const key = `${s.availability_window.day_name}|${s.availability_window.time_range}`
+        if (!acc[id].windows.some(w => `${w.day_name}|${w.time_range}` === key)) {
+          acc[id].windows.push(s.availability_window)
+        }
+        return acc
+      },
+      {}
+    )
+  )
+
+  const DAY_INDEX: Record<string, number> = {
+    sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+    thursday: 4, friday: 5, saturday: 6,
+  }
+
+  function nextOccurrence(dayName: string, startHour: number): string {
+    const targetDay = DAY_INDEX[dayName.toLowerCase()] ?? 0
+    const now = new Date()
+    const date = new Date(now)
+    const todayDay = now.getDay()
+    let daysAhead = targetDay - todayDay
+    if (daysAhead < 0 || (daysAhead === 0 && now.getHours() >= startHour)) daysAhead += 7
+    date.setDate(now.getDate() + daysAhead)
+    date.setHours(startHour, 0, 0, 0)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(startHour)}:00`
+  }
+
+  function handleWindowSelect(window: MatchSuggestion['availability_window']) {
+    setSelectedWindowId(window.id)
+    setInviteForm((f) => ({ ...f, proposed_at: nextOccurrence(window.day_name, window.start_hour) }))
+  }
 
   const FORMAT_MAP: Record<string, { games_planned: number; draft_type: string }> = {
     bo1:          { games_planned: 1, draft_type: 'bo1' },
@@ -108,14 +152,13 @@ export default function MatchmakingPage() {
         </div>
       ) : isError ? (
         <p className="py-8 text-center text-sm text-danger">{t('matchmaking.error')}</p>
-      ) : filtered.length === 0 ? (
+      ) : grouped.length === 0 ? (
         <p className="py-8 text-center text-sm text-text-muted">
           {t('matchmaking.empty')}
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {filtered.map((suggestion) => {
-            const org = suggestion.organization
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+          {grouped.map(({ organization: org, score, windows }) => {
             const isOpen = openInviteId === org.id
             return (
               <div
@@ -137,36 +180,72 @@ export default function MatchmakingPage() {
                           <RetroBadge variant="gold">{tierLabel(org.tier)}</RetroBadge>
                         )}
                       </div>
-                      <div className="mt-1 text-xs text-text-muted">{org.region}</div>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+                        <span>{org.region}</span>
+                        {org.avg_tier && (
+                          <>
+                            <span className="text-text-dim">·</span>
+                            <span>{t('matchmaking.avgTier', { tier: org.avg_tier })}</span>
+                          </>
+                        )}
+                        {(org.scrims_won != null && org.scrims_lost != null) && (
+                          <>
+                            <span className="text-text-dim">·</span>
+                            <span className="text-success">{org.scrims_won}W</span>
+                            <span className="text-danger">{org.scrims_lost}L</span>
+                          </>
+                        )}
+                      </div>
                       {org.public_tagline && (
                         <div className="mt-1 text-xs text-text-muted truncate italic">
                           {org.public_tagline}
                         </div>
                       )}
-                      <div className="mt-2 text-xs text-text-muted">
-                        {suggestion.availability_window.day_name} —{' '}
-                        {suggestion.availability_window.time_range}{' '}
-                        <span className="text-text-dim">
-                          ({suggestion.availability_window.timezone})
-                        </span>
+                      {/* Unique focus areas and draft types across all windows */}
+                      {(() => {
+                        const focuses = [...new Set(windows.map(w => w.focus_area).filter((v): v is string => !!v))]
+                        const drafts  = [...new Set(windows.map(w => w.draft_type).filter((v): v is string => !!v))]
+                        const tierPrefs = [...new Set(windows.map(w => w.tier_preference).filter((v): v is string => !!v && v !== 'any'))]
+                        return (focuses.length > 0 || drafts.length > 0 || tierPrefs.length > 0) ? (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {focuses.map(f => (
+                              <span key={f} className="rounded-sm border border-teal-bright/20 bg-teal-bright/5 px-1.5 py-0.5 font-mono text-[10px] text-teal-bright/70">
+                                {t(`availability.focusArea.${f}`, { defaultValue: f })}
+                              </span>
+                            ))}
+                            {drafts.map(d => (
+                              <span key={d} className="rounded-sm border border-gold/20 bg-gold/5 px-1.5 py-0.5 font-mono text-[10px] text-gold/70">
+                                {t(`availability.draftType.${d}`, { defaultValue: d })}
+                              </span>
+                            ))}
+                            {tierPrefs.map(p => (
+                              <span key={p} className="rounded-sm border border-gold/10 px-1.5 py-0.5 font-mono text-[10px] text-text-dim">
+                                {t(`availability.tier.${p}`, { defaultValue: p })}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null
+                      })()}
+                      <div className="mt-2 space-y-0.5">
+                        {windows.map((w) => (
+                          <div key={w.id} className="grid grid-cols-[100px_1fr] gap-x-2 text-xs text-text-muted">
+                            <span className="capitalize">{w.day_name}</span>
+                            <span>{w.time_range}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <span className="font-mono text-xs text-text-muted">
-                        {t('matchmaking.score', { value: suggestion.score.toFixed(2) })}
+                        {t('matchmaking.score', { value: score.toFixed(2) })}
                       </span>
                       <Button
                         variant={isOpen ? 'outline' : 'primary'}
                         size="sm"
                         onClick={() => {
                           setOpenInviteId(isOpen ? null : org.id)
-                          // Default to tomorrow at 20:00 (local time)
-                          const tomorrow = new Date()
-                          tomorrow.setDate(tomorrow.getDate() + 1)
-                          tomorrow.setHours(20, 0, 0, 0)
-                          const pad = (n: number) => String(n).padStart(2, '0')
-                          const defaultAt = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`
-                          setInviteForm({ message: '', proposed_at: defaultAt, format: 'md3' })
+                          setSelectedWindowId(null)
+                          setInviteForm({ message: '', proposed_at: '', format: 'md3' })
                         }}
                       >
                         {isOpen ? t('matchmaking.close') : t('matchmaking.invite')}
@@ -184,6 +263,28 @@ export default function MatchmakingPage() {
                     >
                       <div className="space-y-1">
                         <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
+                          {t('matchmaking.form.window')}
+                        </label>
+                        <div className="space-y-1">
+                          {windows.map((w) => (
+                            <button
+                              key={w.id}
+                              type="button"
+                              onClick={() => handleWindowSelect(w)}
+                              className={`grid w-full grid-cols-[100px_1fr] gap-x-2 rounded-sm border px-3 py-2 text-left text-xs transition-colors ${
+                                selectedWindowId === w.id
+                                  ? 'border-gold/60 bg-gold/10 text-text-primary'
+                                  : 'border-gold/20 bg-navy-deep text-text-muted hover:border-gold/40'
+                              }`}
+                            >
+                              <span className="capitalize">{w.day_name}</span>
+                              <span>{w.time_range}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
                           {t('matchmaking.form.message')}
                         </label>
                         <textarea
@@ -196,19 +297,19 @@ export default function MatchmakingPage() {
                           className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none resize-none"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
-                          {t('matchmaking.form.proposedAt')}
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={inviteForm.proposed_at}
-                          onChange={(e) =>
-                            setInviteForm({ ...inviteForm, proposed_at: e.target.value })
-                          }
-                          className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
-                        />
-                      </div>
+                      {inviteForm.proposed_at && (
+                        <div className="space-y-1">
+                          <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
+                            {t('matchmaking.form.proposedAt')}
+                          </label>
+                          <div className="rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-muted">
+                            {new Date(inviteForm.proposed_at).toLocaleString('pt-BR', {
+                              weekday: 'long', day: '2-digit', month: '2-digit',
+                              year: 'numeric', hour: '2-digit', minute: '2-digit',
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-1">
                         <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
                           {t('matchmaking.form.format')}
