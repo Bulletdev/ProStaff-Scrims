@@ -14,6 +14,7 @@ export interface Organization {
   public_tagline?: string
   discord_server?: string
   discord_invite_url?: string
+  logo_url?: string | null
   scrims_won?: number
   scrims_lost?: number
   total_scrims?: number

@@ -428,6 +428,10 @@
   "settings.submit": "Save Changes",
   "settings.saved": "Settings saved!",
   "settings.accountSaved": "Account updated!",
+  "settings.logoSaved": "Logo updated!",
+  "settings.logo.title": "Team Logo",
+  "settings.logo.hint": "PNG, JPG or WebP. Shown in chat.",
+  "settings.logo.upload": "Upload logo",
   "settings.account.title": "My Account",
   "settings.account.discordId": "Discord User ID",
   "settings.account.discordIdPlaceholder": "e.g. 123456789012345678",
@@ -437,6 +441,7 @@
   "settings.tier.pro": "Professional",
   "settings.tier.semiPro": "Semi-Pro",
   "settings.tier.amateur": "Amateur",
+  "settings.tier.readOnly": "Tier is managed by the platform.",
   "settings.currentTier": "Current: {{tier}}",
 
   "roster.title": "Roster",

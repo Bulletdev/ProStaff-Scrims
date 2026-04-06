@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getCookie } from '@/lib/cookie'
 import { tierLabel } from '@/lib/utils'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { ChatPopup } from '@/components/scrims/ChatPopup'
 
 // ── RETRO color tokens (mirrors ProStaff palette) ──────────────────
 const GOLD = '#C89B3C'
@@ -429,6 +430,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main style={{ flex: 1, overflow: 'auto', padding: '32px' }}>
         {children}
       </main>
+      <ChatPopup />
     </div>
   )
 }

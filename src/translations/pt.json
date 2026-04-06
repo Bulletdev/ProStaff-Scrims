@@ -428,6 +428,10 @@
   "settings.submit": "Salvar Alterações",
   "settings.saved": "Configurações salvas!",
   "settings.accountSaved": "Conta atualizada!",
+  "settings.logoSaved": "Logo atualizado!",
+  "settings.logo.title": "Logo do Time",
+  "settings.logo.hint": "PNG, JPG ou WebP. Exibido no chat.",
+  "settings.logo.upload": "Enviar logo",
   "settings.account.title": "Minha Conta",
   "settings.account.discordId": "Discord User ID",
   "settings.account.discordIdPlaceholder": "ex: 123456789012345678",
@@ -437,6 +441,7 @@
   "settings.tier.pro": "Profissional",
   "settings.tier.semiPro": "Semi-Pro",
   "settings.tier.amateur": "Amador",
+  "settings.tier.readOnly": "O tier é gerenciado pela plataforma.",
   "settings.currentTier": "Atual: {{tier}}",
 
   "roster.title": "Roster",

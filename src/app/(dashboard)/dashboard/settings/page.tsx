@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { RetroPanel } from '@/components/ui/RetroPanel'
@@ -16,7 +16,6 @@ const REGIONS = ['BR', 'NA', 'EUW', 'EUNE', 'LAN', 'LAS', 'OCE', 'KR', 'JP', 'TR
 interface OrgForm {
   name: string
   region: string
-  tier: string
   public_tagline: string
 }
 
@@ -27,33 +26,29 @@ interface AccountForm {
 export default function SettingsPage() {
   const token = useToken()
   const { t } = useLanguage()
-  const TIERS = [
-    { value: 'tier_1_professional', label: t('settings.tier.pro') },
-    { value: 'tier_2_semi_pro', label: t('settings.tier.semiPro') },
-    { value: 'tier_3_amateur', label: t('settings.tier.amateur') },
-  ]
   const queryClient = useQueryClient()
   const { organization, user, isLoading } = useAuth()
 
   const [form, setForm] = useState<OrgForm>({
     name: '',
     region: '',
-    tier: '',
     public_tagline: '',
   })
 
   const [accountForm, setAccountForm] = useState<AccountForm>({
     discord_user_id: '',
   })
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (organization) {
       setForm({
         name: organization.name ?? '',
         region: organization.region ?? '',
-        tier: organization.tier ?? '',
         public_tagline: organization.public_tagline ?? '',
       })
+      if (organization.logo_url) setLogoPreview(organization.logo_url)
     }
   }, [organization])
 
@@ -87,12 +82,39 @@ export default function SettingsPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const uploadLogo = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/organizations/${organization!.id}/logo`, {
+        method: 'POST',
+        body: fd,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error?.message ?? `HTTP ${res.status}`)
+      }
+      return res.json() as Promise<{ logo_url: string }>
+    },
+    onSuccess: (data) => {
+      setLogoPreview(data.logo_url)
+      toast.success(t('settings.logoSaved'))
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    uploadLogo.mutate(file)
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     updateOrg.mutate({
       name: form.name,
       region: form.region,
-      tier: form.tier || undefined,
       public_tagline: form.public_tagline || undefined,
     })
   }
@@ -120,6 +142,47 @@ export default function SettingsPage() {
         </div>
       ) : (
         <RetroPanel title={t('settings.panel')}>
+          {/* Logo upload */}
+          <div className="mb-5 flex items-center gap-4">
+            <div
+              className="relative flex h-16 w-16 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm border border-gold/30 bg-navy-deep"
+              onClick={() => logoInputRef.current?.click()}
+              title={t('settings.logo.upload')}
+            >
+              {logoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-mono text-xs text-text-muted">LOGO</span>
+              )}
+              {uploadLogo.isPending && (
+                <div className="absolute inset-0 flex items-center justify-center bg-navy-deep/70">
+                  <span className="font-mono text-[10px] text-gold">...</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="font-mono text-xs uppercase tracking-widest text-text-muted">
+                {t('settings.logo.title')}
+              </p>
+              <p className="mt-0.5 text-[11px] text-text-dim">{t('settings.logo.hint')}</p>
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                className="mt-1 font-mono text-[11px] text-gold underline underline-offset-2 opacity-70 hover:opacity-100"
+              >
+                {t('settings.logo.upload')}
+              </button>
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleLogoChange}
+            />
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1">
@@ -156,21 +219,10 @@ export default function SettingsPage() {
                 <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
                   {t('settings.form.tier')}
                 </label>
-                <select
-                  value={form.tier}
-                  onChange={(e) => setForm({ ...form, tier: e.target.value })}
-                  className={inputClass}
-                >
-                  <option value="">{t('settings.form.tierPlaceholder')}</option>
-                  {TIERS.map((tier) => (
-                    <option key={tier.value} value={tier.value}>{tier.label}</option>
-                  ))}
-                </select>
-                {form.tier && (
-                  <p className="text-[11px] text-text-dim">
-                    {t('settings.currentTier', { tier: tierLabel(form.tier) })}
-                  </p>
-                )}
+                <div className={`${inputClass} cursor-default opacity-60`}>
+                  {organization?.tier ? tierLabel(organization.tier) : t('settings.form.tierPlaceholder')}
+                </div>
+                <p className="text-[11px] text-text-dim">{t('settings.tier.readOnly')}</p>
               </div>
 
               <div className="col-span-2 space-y-1">
