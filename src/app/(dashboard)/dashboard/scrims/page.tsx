@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RetroPanel } from '@/components/ui/RetroPanel'
 import { RetroBadge } from '@/components/ui/RetroBadge'
@@ -580,6 +581,13 @@ export default function ScrimsPage() {
                           ? t('scrims.status.in_progress')
                           : t('scrims.status.completed')}
                       </RetroBadge>
+                      <Link
+                        href={`/dashboard/scrims/${scrim.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-mono text-[10px] uppercase tracking-widest text-gold/60 hover:text-gold transition-colors"
+                      >
+                        {t('scrims.detail.viewDetails')}
+                      </Link>
                       {isExpanded
                         ? <ChevronUp className="h-4 w-4 text-text-dim" />
                         : <ChevronDown className="h-4 w-4 text-text-dim" />
