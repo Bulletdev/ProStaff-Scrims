@@ -120,19 +120,6 @@ export function ScrimCard({ scrim, onChallenge }: ScrimCardProps) {
         <RosterStrip roster={org.roster} />
       )}
 
-      {/* Discord link */}
-      {org.discord_invite_url && (
-        <div className="mt-3 border-t border-gold/10 pt-3">
-          <a
-            href={org.discord_invite_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-teal hover:text-teal-light transition-colors"
-          >
-            Join Discord →
-          </a>
-        </div>
-      )}
     </RetroPanel>
   )
 }

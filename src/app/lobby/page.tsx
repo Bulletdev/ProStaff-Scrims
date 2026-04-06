@@ -175,8 +175,16 @@ export default function LobbyPage() {
             <div className="py-8 text-center">
               <p className="font-mono text-text-muted">{t('lobby.empty')}</p>
               <p className="mt-2 text-xs text-text-dim">
-                <Link href="/register" className="text-gold hover:underline">{t('lobby.emptyLink')}</Link>{' '}
-                {t('lobby.emptyLinkSuffix')}
+                {isLoggedIn ? (
+                  <Link href="/dashboard/scrims" className="text-gold hover:underline">
+                    {t('lobby.emptyLinkLoggedIn')}
+                  </Link>
+                ) : (
+                  <>
+                    <Link href="/register" className="text-gold hover:underline">{t('lobby.emptyLink')}</Link>{' '}
+                    {t('lobby.emptyLinkSuffix')}
+                  </>
+                )}
               </p>
             </div>
           </RetroPanel>

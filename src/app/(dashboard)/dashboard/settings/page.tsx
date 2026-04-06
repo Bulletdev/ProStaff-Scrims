@@ -18,7 +18,10 @@ interface OrgForm {
   region: string
   tier: string
   public_tagline: string
-  discord_invite_url: string
+}
+
+interface AccountForm {
+  discord_user_id: string
 }
 
 export default function SettingsPage() {
@@ -30,14 +33,17 @@ export default function SettingsPage() {
     { value: 'tier_3_amateur', label: t('settings.tier.amateur') },
   ]
   const queryClient = useQueryClient()
-  const { organization, isLoading } = useAuth()
+  const { organization, user, isLoading } = useAuth()
 
   const [form, setForm] = useState<OrgForm>({
     name: '',
     region: '',
     tier: '',
     public_tagline: '',
-    discord_invite_url: '',
+  })
+
+  const [accountForm, setAccountForm] = useState<AccountForm>({
+    discord_user_id: '',
   })
 
   useEffect(() => {
@@ -47,16 +53,35 @@ export default function SettingsPage() {
         region: organization.region ?? '',
         tier: organization.tier ?? '',
         public_tagline: organization.public_tagline ?? '',
-        discord_invite_url: organization.discord_invite_url ?? '',
       })
     }
   }, [organization])
+
+  useEffect(() => {
+    if (user) {
+      setAccountForm({ discord_user_id: user.discord_user_id ?? '' })
+    }
+  }, [user])
 
   const updateOrg = useMutation({
     mutationFn: (body: Partial<OrgForm>) =>
       api.patch(`/organizations/${organization!.id}`, body, { token: token! }),
     onSuccess: () => {
       toast.success(t('settings.saved'))
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const updateAccount = useMutation({
+    mutationFn: (body: AccountForm) =>
+      fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: body }),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      toast.success(t('settings.accountSaved'))
       queryClient.invalidateQueries({ queryKey: ['me'] })
     },
     onError: (err: Error) => toast.error(err.message),
@@ -69,8 +94,12 @@ export default function SettingsPage() {
       region: form.region,
       tier: form.tier || undefined,
       public_tagline: form.public_tagline || undefined,
-      discord_invite_url: form.discord_invite_url || undefined,
     })
+  }
+
+  function handleAccountSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    updateAccount.mutate({ discord_user_id: accountForm.discord_user_id })
   }
 
   const inputClass =
@@ -159,18 +188,6 @@ export default function SettingsPage() {
                 <p className="text-[11px] text-text-dim">{form.public_tagline.length}/120</p>
               </div>
 
-              <div className="col-span-2 space-y-1">
-                <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
-                  {t('settings.form.discord')}
-                </label>
-                <input
-                  type="url"
-                  value={form.discord_invite_url}
-                  onChange={(e) => setForm({ ...form, discord_invite_url: e.target.value })}
-                  placeholder={t('settings.form.discordPlaceholder')}
-                  className={inputClass}
-                />
-              </div>
             </div>
 
             <div className="flex items-center justify-between pt-2">
@@ -193,6 +210,45 @@ export default function SettingsPage() {
           </form>
         </RetroPanel>
       )}
+
+      {/* Account panel — user-level settings */}
+      <RetroPanel title={t('settings.account.title')}>
+        <form onSubmit={handleAccountSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="font-mono text-xs uppercase tracking-widest text-text-muted">
+              {t('settings.account.discordId')}
+            </label>
+            <input
+              type="text"
+              value={accountForm.discord_user_id}
+              onChange={(e) => setAccountForm({ discord_user_id: e.target.value })}
+              placeholder={t('settings.account.discordIdPlaceholder')}
+              className={inputClass}
+              pattern="\d{17,20}"
+              title={t('settings.account.discordIdHint')}
+            />
+            <p className="text-[11px] text-text-dim">{t('settings.account.discordIdHint')}</p>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            {updateAccount.isError && (
+              <p className="text-xs text-danger">
+                {(updateAccount.error as Error).message}
+              </p>
+            )}
+            <div className="ml-auto">
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={updateAccount.isPending}
+              >
+                {t('settings.submit')}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </RetroPanel>
 
       {/* Info panel */}
       {organization && (

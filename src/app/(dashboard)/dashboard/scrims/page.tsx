@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { RetroPanel } from '@/components/ui/RetroPanel'
 import { RetroBadge } from '@/components/ui/RetroBadge'
 import { Button } from '@/components/ui/Button'
@@ -298,34 +298,9 @@ function ScrimDetail({ scrimId, token }: { scrimId: string; token: string }) {
 
 export default function ScrimsPage() {
   const token = useToken()
-  const queryClient = useQueryClient()
   const { t } = useLanguage()
   const [page, setPage] = useState(1)
-  const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [form, setForm] = useState({
-    opponent_name: '',
-    scheduled_at: '',
-    games_planned: '3',
-    focus_area: 'laning',
-    draft_type: '',
-  })
-
-  const DRAFT_TYPES = [
-    { value: '', label: t('scrims.draftType.any') },
-    { value: 'md3', label: t('scrims.draftType.md3') },
-    { value: 'md5', label: t('scrims.draftType.md5') },
-    { value: 'md3_fearless', label: t('scrims.draftType.md3_fearless') },
-    { value: 'bo1', label: t('scrims.draftType.bo1') },
-  ]
-
-  const FOCUS_AREAS = [
-    { value: 'laning', label: t('scrims.focus.laning') },
-    { value: 'teamfight', label: t('scrims.focus.teamfight') },
-    { value: 'objectives', label: t('scrims.focus.objectives') },
-    { value: 'draft', label: t('scrims.focus.draft') },
-    { value: 'rotations', label: t('scrims.focus.rotations') },
-  ]
 
   const { data: analyticsData } = useQuery<AnalyticsResponse>({
     queryKey: ['scrims-analytics', token],
@@ -339,31 +314,9 @@ export default function ScrimsPage() {
     enabled: !!token,
   })
 
-  const createScrim = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/scrims/scrims', body, { token: token! }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['scrims'] })
-      queryClient.invalidateQueries({ queryKey: ['scrims-analytics'] })
-      setShowForm(false)
-      setForm({ opponent_name: '', scheduled_at: '', games_planned: '3', focus_area: 'laning', draft_type: '' })
-    },
-  })
-
   const overall = analyticsData?.overall_stats
   const scrims = scrimsData?.data?.scrims ?? []
   const pagination = scrimsData?.data?.meta
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    createScrim.mutate({
-      opponent_team_name: form.opponent_name,
-      scheduled_at: form.scheduled_at,
-      games_planned: Number(form.games_planned),
-      focus_area: form.focus_area,
-      draft_type: form.draft_type || undefined,
-    })
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -373,9 +326,9 @@ export default function ScrimsPage() {
           <h1 className="font-mono text-xl font-bold text-text-primary">{t('scrims.title')}</h1>
           <p className="text-sm text-text-muted">{t('scrims.subtitle')}</p>
         </div>
-        <Button variant="primary" size="sm" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? t('scrims.cancel') : t('scrims.schedule')}
-        </Button>
+        <Link href="/dashboard/matchmaking">
+          <Button variant="primary" size="sm">{t('scrims.schedule')}</Button>
+        </Link>
       </div>
 
       {/* Analytics bar */}
@@ -406,91 +359,6 @@ export default function ScrimsPage() {
         </RetroPanel>
       </div>
 
-      {/* Schedule form */}
-      {showForm && (
-        <RetroPanel title={t('scrims.form.title')}>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-1">
-              <label className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                {t('scrims.form.opponent')}
-              </label>
-              <input
-                type="text"
-                required
-                value={form.opponent_name}
-                onChange={(e) => setForm({ ...form, opponent_name: e.target.value })}
-                placeholder={t('scrims.form.opponentPlaceholder')}
-                className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                {t('scrims.form.datetime')}
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={form.scheduled_at}
-                onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
-                className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                {t('scrims.form.games')}
-              </label>
-              <select
-                value={form.games_planned}
-                onChange={(e) => setForm({ ...form, games_planned: e.target.value })}
-                className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
-              >
-                <option value="1">1 Game</option>
-                <option value="3">3 Games</option>
-                <option value="5">5 Games</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                {t('scrims.form.draftType')}
-              </label>
-              <select
-                value={form.draft_type}
-                onChange={(e) => setForm({ ...form, draft_type: e.target.value })}
-                className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
-              >
-                {DRAFT_TYPES.map((d) => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                {t('scrims.form.focusArea')}
-              </label>
-              <select
-                value={form.focus_area}
-                onChange={(e) => setForm({ ...form, focus_area: e.target.value })}
-                className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
-              >
-                {FOCUS_AREAS.map((f) => (
-                  <option key={f.value} value={f.value}>{f.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="col-span-2 flex justify-end">
-              <Button type="submit" variant="primary" size="sm" loading={createScrim.isPending}>
-                {t('scrims.form.submit')}
-              </Button>
-            </div>
-            {createScrim.isError && (
-              <p className="col-span-2 text-xs text-danger">
-                {(createScrim.error as Error).message}
-              </p>
-            )}
-          </form>
-        </RetroPanel>
-      )}
-
       {/* Scrims list */}
       <RetroPanel title={t('scrims.history')}>
         {scrimsLoading ? (
@@ -504,9 +372,9 @@ export default function ScrimsPage() {
         ) : scrims.length === 0 ? (
           <p className="py-8 text-center text-sm text-text-muted">
             {t('scrims.empty')}{' '}
-            <button onClick={() => setShowForm(true)} className="text-gold hover:underline">
+            <Link href="/dashboard/matchmaking" className="text-gold hover:underline">
               {t('scrims.emptyLink')}
-            </button>
+            </Link>
           </p>
         ) : (
           <div className="space-y-2">
