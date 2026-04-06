@@ -124,10 +124,13 @@ interface Participation {
   player_id: string
   player_name: string
   team: TeamColor
+  role?: string
   tier_snapshot: string
+  mu_snapshot?: number
+  sigma_snapshot?: number
+  mmr_delta?: number
   wins: number
   losses: number
-  mmr_delta?: number
   is_captain?: boolean
 }
 
@@ -155,12 +158,13 @@ interface LadderEntry {
   rank: number
   player_id: string
   player_name: string
-  summoner_name?: string
   role?: string
-  inhouse_mmr: number
+  mmr: number
+  mu: number
+  sigma: number
   wins: number
   losses: number
-  games: number
+  games_played: number
   win_rate: number
 }
 
@@ -1533,16 +1537,15 @@ function LadderView({ token }: { token: string }) {
                   {medal && <span style={{ fontSize: 14 }}>{medal}</span>}
                   <span style={{ fontSize: 13, color: '#fff', fontWeight: 500 }}>{entry.player_name}</span>
                 </div>
-                {entry.summoner_name && (
+                {entry.role && (
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'Share Tech Mono, monospace' }}>
-                    {entry.summoner_name}
-                    {entry.role && <> · <RoleIcon role={entry.role} size={11} /> {roleLabel(entry.role)}</>}
+                    <RoleIcon role={entry.role} size={11} /> {roleLabel(entry.role)}
                   </div>
                 )}
               </div>
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: 15, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: GOLD }}>
-                  {entry.inhouse_mmr}
+                  {entry.mmr}
                 </span>
               </div>
               <div style={{ textAlign: 'right', fontSize: 11, fontFamily: 'Share Tech Mono, monospace' }}>

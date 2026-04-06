@@ -12,10 +12,23 @@ const TOKEN_OPTS = {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+
+  const payload = {
+    organization: {
+      name: body.organization_name,
+      region: body.region,
+    },
+    user: {
+      email: body.email,
+      password: body.password,
+      full_name: body.full_name,
+    },
+  }
+
   const upstream = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   })
 
   const data = await upstream.json()
