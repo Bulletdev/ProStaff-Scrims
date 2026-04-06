@@ -8,6 +8,7 @@ import { RetroPanel } from '@/components/ui/RetroPanel'
 import { RetroBadge } from '@/components/ui/RetroBadge'
 import { Button } from '@/components/ui/Button'
 import { ScrimChat } from '@/components/scrims/ScrimChat'
+import { ScrimResultReport } from '@/components/scrims/ScrimResultReport'
 import { api } from '@/lib/api'
 import { useToken } from '@/hooks/useToken'
 import { useAuth } from '@/hooks/useAuth'
@@ -95,6 +96,27 @@ const LANE_ICON: Record<string, string> = {
   support: '/lane-icon/supp.svg',
 }
 
+interface ResultReport {
+  id: string
+  status: string
+  game_outcomes: string[]
+  reported_at: string | null
+  confirmed_at: string | null
+  deadline_at: string
+  attempt_count: number
+  attempts_remaining: number
+}
+
+interface ResultData {
+  my_report: ResultReport | null
+  opponent_report: { status: string; has_reported: boolean; confirmed_at: string | null; game_outcomes: string[] | null } | null
+  status: string
+  deadline_at: string | null
+  attempts_remaining: number
+  max_attempts: number
+  games_planned: number | null
+}
+
 export default function ScrimDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const token = useToken()
@@ -107,11 +129,19 @@ export default function ScrimDetailPage({ params }: { params: Promise<{ id: stri
     enabled: !!token && !!id,
   })
 
+  // Shares cache with ScrimResultReport component — no extra request
+  const { data: resultData } = useQuery<{ data: ResultData }>({
+    queryKey: ['scrim-result', id],
+    queryFn: () => fetch(`/api/scrims/${id}/result`).then((r) => r.json()),
+    enabled: !!id && !!data?.data?.scheduled_at && new Date(data.data.scheduled_at) < new Date(),
+  })
+
   const scrim = data?.data
   const opponentName = scrim?.opponent_team?.name ?? t('scrims.detail.unknown')
   const opp = scrim?.opponent_detail
   const h2h = scrim?.head_to_head
   const results = scrim?.game_results ?? []
+  const confirmedReport = resultData?.data?.status === 'confirmed' ? resultData.data : null
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -331,6 +361,23 @@ export default function ScrimDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   ))}
                 </div>
+              ) : confirmedReport?.my_report?.game_outcomes?.length ? (
+                <div className="space-y-1">
+                  {confirmedReport.my_report.game_outcomes.map((o, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 rounded-sm border border-gold/10 bg-navy-deep px-3 py-2"
+                    >
+                      <span className="font-mono text-xs text-text-dim w-12">Game {i + 1}</span>
+                      <span className={`font-mono text-xs font-bold ${o === 'win' ? 'text-success' : 'text-danger'}`}>
+                        {o === 'win' ? t('scrims.detail.win') : t('scrims.detail.loss')}
+                      </span>
+                      <span className="ml-auto font-mono text-[10px] text-text-dim uppercase tracking-widest">
+                        {t('scrims.result.sourceLabel')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               ) : scrim.status === 'upcoming' ? (
                 <p className="text-xs text-text-dim italic">{t('scrims.detail.upcoming')}</p>
               ) : (
@@ -356,8 +403,16 @@ export default function ScrimDetailPage({ params }: { params: Promise<{ id: stri
             </RetroPanel>
           </div>
 
-          {/* Right column — chat */}
-          <div>
+          {/* Right column — chat + result report */}
+          <div className="space-y-4">
+            {scrim.scheduled_at && (
+              <ScrimResultReport
+                scrimId={id}
+                opponentName={opponentName}
+                scheduledAt={scrim.scheduled_at}
+                gamesPlanned={scrim.games_planned}
+              />
+            )}
             {organization ? (
               <ScrimChat
                 scrimId={id}
