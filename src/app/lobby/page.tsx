@@ -78,7 +78,7 @@ export default function LobbyPage() {
       params.set('game', 'league_of_legends')
       if (region) params.set('region', region)
       params.set('page', String(page))
-      return api.get<LobbyResponse>(`/scrims/lobby?${params}`)
+      return fetch(`/api/scrims/lobby?${params}`).then((r) => r.json())
     },
   })
 
