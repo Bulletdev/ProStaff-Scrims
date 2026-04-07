@@ -19,6 +19,7 @@
   "nav.dashboard": "Dashboard",
   "nav.publicLobby": "Public Lobby",
   "nav.logout": "Log Out",
+  "nav.collapse": "Collapse",
 
   "nav.section.general": "General",
   "nav.section.matchmaking": "Matchmaking",

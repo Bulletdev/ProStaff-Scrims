@@ -118,8 +118,16 @@ function SidebarDivider() {
 
 // ── Sidebar component ──────────────────────────────────────────────
 function RetroDashboardSidebar() {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768
+  )
+
   const pathname = usePathname()
+
+  // Colapsa automaticamente fora do overview
+  useEffect(() => {
+    if (pathname !== '/dashboard') setCollapsed(true)
+  }, [pathname])
   const { organization, logout } = useAuth()
   const { t, language, setLanguage } = useLanguage()
 
@@ -140,7 +148,7 @@ function RetroDashboardSidebar() {
     { href: '/dashboard/roster', label: t('nav.item.roster'), iconSrc: '/sidebar-icons/Roster.svg' },
   ]
 
-  const w = collapsed ? 56 : 192
+  const w = collapsed ? 44 : 168
 
   return (
     <aside
@@ -198,6 +206,55 @@ function RetroDashboardSidebar() {
           </div>
         )}
       </div>
+
+      {/* ── Collapse toggle ── */}
+      {/* ── Collapse toggle ── */}
+      <button
+        onClick={() => setCollapsed((v) => !v)}
+        style={{
+          borderBottom: `1px solid ${GOLD_DIM}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'space-between',
+          gap: 6,
+          padding: collapsed ? '5px 0' : '5px 10px',
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          borderBottom: `1px solid ${GOLD_DIM}`,
+          cursor: 'pointer',
+          flexShrink: 0,
+          boxSizing: 'border-box',
+        }}
+      >
+        {!collapsed && (
+          <span style={{
+            fontSize: 9,
+            color: GOLD_DIM,
+            fontFamily: 'Share Tech Mono, monospace',
+            letterSpacing: '0.15em',
+            textTransform: 'uppercase',
+          }}>
+            {t('nav.collapse')}
+          </span>
+        )}
+        <div style={{
+          width: 20,
+          height: 20,
+          border: `1px solid ${GOLD_DIM}`,
+          borderRadius: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: GOLD_DIM,
+          flexShrink: 0,
+        }}>
+          {collapsed
+            ? <ChevronRight style={{ width: 12, height: 12 }} />
+            : <ChevronLeft style={{ width: 12, height: 12 }} />
+          }
+        </div>
+      </button>
 
       {/* ── Main nav ── */}
       <div style={{ padding: '10px 0 4px' }}>
@@ -379,34 +436,6 @@ function RetroDashboardSidebar() {
 
       </div>
 
-      {/* ── Collapse toggle ── */}
-      <button
-        onClick={() => setCollapsed((v) => !v)}
-        style={{
-          position: 'absolute',
-          bottom: 80,
-          right: collapsed ? '50%' : 6,
-          transform: collapsed ? 'translateX(50%)' : 'none',
-          width: 20,
-          height: 20,
-          background: NAVY_DEEP,
-          border: `1px solid ${GOLD_DIM}`,
-          borderRadius: 2,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: GOLD_DIM,
-          transition: 'right 0.25s, transform 0.25s',
-          zIndex: 10,
-        }}
-        title={collapsed ? 'Expandir' : 'Recolher'}
-      >
-        {collapsed
-          ? <ChevronRight style={{ width: 12, height: 12 }} />
-          : <ChevronLeft style={{ width: 12, height: 12 }} />
-        }
-      </button>
     </aside>
   )
 }
@@ -428,7 +457,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: NAVY_DEEP }}>
       <RetroDashboardSidebar />
-      <main style={{ flex: 1, overflow: 'auto', padding: '32px' }}>
+      <main style={{ flex: 1, overflow: 'auto', padding: 'clamp(12px, 4vw, 32px)' }}>
         {children}
       </main>
       <ChatPopup />

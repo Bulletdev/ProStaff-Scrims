@@ -23,6 +23,8 @@ interface Player {
   solo_queue_lp: number
   status: string
   last_sync_at?: string
+  profile_icon_id?: number | null
+  avatar_url?: string | null
 }
 
 interface PlayersResponse {
@@ -34,7 +36,16 @@ interface PlayersResponse {
 const ROLE_LABEL: Record<string, string> = {
   top: 'Top', jungle: 'Jungle', mid: 'Mid', adc: 'ADC', support: 'Support', fill: 'Fill',
 }
+const ROLE_ICON: Record<string, string | null> = {
+  top: '/lane-icon/top.svg',
+  jungle: '/lane-icon/jungle.svg',
+  mid: '/lane-icon/mid.svg',
+  adc: '/lane-icon/bot.webp',
+  support: '/lane-icon/supp.svg',
+  fill: null,
+}
 const ROLE_ORDER = ['top', 'jungle', 'mid', 'adc', 'support', 'fill']
+const DDRAGON_VERSION = '16.3.1'
 const SINGLE_TIER = ['master', 'grandmaster', 'challenger']
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -401,21 +412,61 @@ function PlayerCard({
     ? new Date(player.last_sync_at).toLocaleDateString()
     : null
 
+  const iconUrl = player.avatar_url
+    ?? (player.profile_icon_id
+      ? `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/profileicon/${player.profile_icon_id}.png`
+      : null)
+  const laneIcon = ROLE_ICON[player.role] ?? null
+  const displayInitial = (player.professional_name || player.real_name || player.summoner_name).charAt(0).toUpperCase()
+
   return (
-    <div className="flex items-center justify-between rounded-sm border border-gold/10 bg-navy-deep px-4 py-3">
-      <div className="flex items-center gap-4 min-w-0">
-        <div className="font-mono text-xs text-gold w-16 shrink-0">{role}</div>
-        <div className="min-w-0">
-          <div className="font-mono text-sm font-semibold text-text-primary">
+    <div className="rounded-sm border border-gold/10 bg-navy-deep px-4 py-3 space-y-2">
+      {/* Linha de info — sempre ocupa 100% da largura, sem concorrência com botões */}
+      <div className="flex items-center gap-3">
+        {/* Avatar */}
+        <div className="relative h-8 w-8 sm:h-10 sm:w-10 shrink-0 overflow-hidden rounded-sm border border-gold/20 bg-navy">
+          {iconUrl ? (
+            <img
+              src={iconUrl}
+              alt="icon"
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+                const fb = e.currentTarget.nextElementSibling as HTMLElement | null
+                if (fb) fb.style.display = 'flex'
+              }}
+            />
+          ) : null}
+          <div
+            className="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-gold"
+            style={{ display: iconUrl ? 'none' : 'flex' }}
+          >
+            {displayInitial}
+          </div>
+        </div>
+
+        {/* Role: só ícone no mobile, ícone + texto no sm+ */}
+        <div className="flex items-center gap-1 shrink-0">
+          {laneIcon
+            ? <img src={laneIcon} alt={role} className="h-4 w-4 opacity-80" />
+            : <span className="font-mono text-xs text-gold">{role}</span>
+          }
+          <span className="hidden sm:inline font-mono text-xs text-gold">{laneIcon ? role : ''}</span>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-sm font-semibold text-text-primary truncate">
             {formatDisplayName(player)}
           </div>
-          <div className="text-xs text-text-muted">
+          <div className="text-xs text-text-muted truncate">
             {player.summoner_name} — {rank}
             {syncedAt && <span className="ml-2 opacity-50">· sync {syncedAt}</span>}
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+
+      {/* Linha de ações */}
+      <div className="flex items-center gap-2 flex-wrap">
         <RetroBadge variant={statusVariant(player.status)}>
           {player.status === 'active' ? t('common.active') : t('common.inactive')}
         </RetroBadge>
