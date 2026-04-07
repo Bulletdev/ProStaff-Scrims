@@ -25,7 +25,7 @@ export default function MatchmakingPage() {
   const { t, language } = useLanguage()
   const [regionFilter, setRegionFilter] = useState('')
   const [openInviteId, setOpenInviteId] = useState<string | null>(null)
-  const [inviteForm, setInviteForm] = useState({ message: '', proposed_at: '', format: 'md3' })
+  const [inviteForm, setInviteForm] = useState({ message: '', proposed_at: '', format: 'md3_fearless' })
   const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery<SuggestionsResponse>({
@@ -40,7 +40,7 @@ export default function MatchmakingPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scrim-requests'] })
       setOpenInviteId(null)
-      setInviteForm({ message: '', proposed_at: '', format: 'md3' })
+      setInviteForm({ message: '', proposed_at: '', format: 'md3_fearless' })
     },
   })
 
@@ -266,7 +266,7 @@ export default function MatchmakingPage() {
                         onClick={() => {
                           setOpenInviteId(isOpen ? null : org.id)
                           setSelectedWindowId(null)
-                          setInviteForm({ message: '', proposed_at: '', format: 'md3' })
+                          setInviteForm({ message: '', proposed_at: '', format: 'md3_fearless' })
                         }}
                       >
                         {isOpen ? t('matchmaking.close') : t('matchmaking.invite')}
@@ -340,10 +340,10 @@ export default function MatchmakingPage() {
                           onChange={(e) => setInviteForm({ ...inviteForm, format: e.target.value })}
                           className="w-full rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
                         >
-                          <option value="bo1">{t('scrims.draftType.bo1')}</option>
+                          <option value="md3_fearless">{t('scrims.draftType.md3_fearless')}</option>
                           <option value="md3">{t('scrims.draftType.md3')}</option>
                           <option value="md5">{t('scrims.draftType.md5')}</option>
-                          <option value="md3_fearless">{t('scrims.draftType.md3_fearless')}</option>
+                          <option value="bo1">{t('scrims.draftType.bo1')}</option>
                         </select>
                       </div>
                       <div className="flex justify-end">
