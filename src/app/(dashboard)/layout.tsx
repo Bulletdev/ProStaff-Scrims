@@ -208,11 +208,9 @@ function RetroDashboardSidebar() {
       </div>
 
       {/* ── Collapse toggle ── */}
-      {/* ── Collapse toggle ── */}
       <button
         onClick={() => setCollapsed((v) => !v)}
         style={{
-          borderBottom: `1px solid ${GOLD_DIM}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'space-between',
