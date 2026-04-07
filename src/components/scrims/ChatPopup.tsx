@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, KeyboardEvent } from 'react'
+import React, { useCallback, useEffect, useRef, useState, KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MessageSquare, X, ChevronLeft, Send } from 'lucide-react'
 import { createConsumer } from '@rails/actioncable'
@@ -8,6 +8,7 @@ import { useToken } from '@/hooks/useToken'
 import { useAuth } from '@/hooks/useAuth'
 import { useScrimChat, ScrimMessage } from '@/hooks/useScrimChat'
 import { api } from '@/lib/api'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -40,27 +41,29 @@ function buildCableUrl(token: string) {
   return `${ws}/cable?token=${token}`
 }
 
-function formatShortDate(iso: string) {
+type TFn = (key: string, vars?: Record<string, string>) => string
+
+function formatShortDate(iso: string, t: TFn) {
   const d = new Date(iso)
   const diff = Math.round((d.getTime() - Date.now()) / 86_400_000)
-  if (diff === 0)  return 'Hoje ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  if (diff === 1)  return 'Amanhã'
-  if (diff === -1) return 'Ontem'
-  if (diff > 1 && diff < 7) return `Em ${diff} dias`
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  if (diff === 0)  return t('chat.today') + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (diff === 1)  return t('chat.tomorrow')
+  if (diff === -1) return t('chat.yesterday')
+  if (diff > 1 && diff < 7) return t('chat.inDays', { count: String(diff) })
+  return d.toLocaleDateString([], { day: '2-digit', month: '2-digit' })
 }
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function formatDateLabel(iso: string) {
+function formatDateLabel(iso: string, t: TFn) {
   const d = new Date(iso)
   const now = new Date()
   const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1)
-  if (d.toDateString() === now.toDateString()) return 'Hoje'
-  if (d.toDateString() === yesterday.toDateString()) return 'Ontem'
-  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+  if (d.toDateString() === now.toDateString()) return t('chat.today')
+  if (d.toDateString() === yesterday.toDateString()) return t('chat.yesterday')
+  return d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'long' })
 }
 
 function sameDay(a: string, b: string) {
@@ -70,6 +73,37 @@ function sameDay(a: string, b: string) {
 function pickActiveScrim(scrims: ScrimEntry[]): ScrimEntry {
   const upcoming = scrims.filter(s => new Date(s.scheduled_at).getTime() > Date.now())
   return upcoming[0] ?? scrims[scrims.length - 1]
+}
+
+// ── Team avatar with logo fallback ────────────────────────────────
+
+function TeamAvatar({ name, logoUrl, hasUnread }: { name: string; logoUrl?: string | null; hasUnread: boolean }) {
+  const [imgError, setImgError] = useState(false)
+  const initials = name.slice(0, 2).toUpperCase()
+  const style: React.CSSProperties = {
+    width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+    background: hasUnread ? 'rgba(255,68,68,0.12)' : 'rgba(200,155,60,0.1)',
+    border: `1px solid ${hasUnread ? 'rgba(255,68,68,0.3)' : 'rgba(200,155,60,0.22)'}`,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'Share Tech Mono, monospace',
+    fontSize: 13, fontWeight: 700,
+    color: hasUnread ? '#FF4444' : '#C89B3C',
+    overflow: 'hidden',
+  }
+  if (logoUrl && !imgError) {
+    return (
+      <div style={style}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoUrl}
+          alt={name}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+          onError={() => setImgError(true)}
+        />
+      </div>
+    )
+  }
+  return <div style={style}>{initials}</div>
 }
 
 // ── Background unread tracker ──────────────────────────────────────
@@ -141,6 +175,7 @@ function ConversationChat({
   currentOrgId: string
   token: string
 }) {
+  const { t } = useLanguage()
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const activeScrim = pickActiveScrim(opponent.scrims)
@@ -199,7 +234,7 @@ function ConversationChat({
           boxShadow: isConnected ? '0 0 4px #4ECDC4' : 'none',
         }} />
         <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: 'Share Tech Mono, monospace', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          {isConnected ? 'Ao vivo' : 'Offline'} · {opponent.scrims.length} scrim{opponent.scrims.length !== 1 ? 's' : ''}
+          {isConnected ? t('chat.live') : t('chat.offline')} · {opponent.scrims.length} {t('chat.scrims')}
         </span>
       </div>
 
@@ -211,7 +246,7 @@ function ConversationChat({
           ))
         ) : allMessages.length === 0 ? (
           <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.18)', fontSize: 11, fontFamily: 'Share Tech Mono, monospace', padding: '32px 0' }}>
-            Nenhuma mensagem ainda.
+            {t('chat.noMessages')}
           </p>
         ) : allMessages.map((msg, idx) => {
           const own  = msg.organization.id === currentOrgId
@@ -224,7 +259,7 @@ function ConversationChat({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 4px' }}>
                   <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
                   <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)', fontFamily: 'Share Tech Mono, monospace', letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                    {formatDateLabel(msg.created_at)}
+                    {formatDateLabel(msg.created_at, t)}
                   </span>
                   <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
                 </div>
@@ -262,7 +297,7 @@ function ConversationChat({
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Mensagem..."
+          placeholder={t('chat.inputPlaceholder')}
           style={{
             flex: 1, background: 'rgba(7,12,20,0.8)',
             border: '1px solid rgba(200,155,60,0.18)', borderRadius: 4,
@@ -294,6 +329,7 @@ function ConversationChat({
 export function ChatPopup() {
   const token = useToken()
   const { organization } = useAuth()
+  const { t } = useLanguage()
   const [isOpen, setIsOpen]           = useState(false)
   const [activeOpponent, setActive]   = useState<Opponent | null>(null)
 
@@ -313,7 +349,7 @@ export function ChatPopup() {
         return t > now - 30 * 86_400_000 && t < now + 30 * 86_400_000
       })
       .reduce<Record<string, Opponent>>((acc, s) => {
-        const key = s.opponent_team?.name ?? 'Adversário'
+        const key = s.opponent_team?.name ?? t('chat.opponent')
         if (!acc[key]) acc[key] = { name: key, logo_url: s.opponent_team?.logo_url, scrims: [] }
         // Update logo_url if we find one (in case first scrim had none)
         if (!acc[key].logo_url && s.opponent_team?.logo_url) acc[key].logo_url = s.opponent_team.logo_url
@@ -398,8 +434,11 @@ export function ChatPopup() {
                   <ChevronLeft style={{ width: 16, height: 16 }} />
                 </button>
               )}
+              {activeOpponent && (
+                <TeamAvatar name={activeOpponent.name} logoUrl={activeOpponent.logo_url} hasUnread={false} />
+              )}
               <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 11, color: '#C89B3C', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-                {activeOpponent ? activeOpponent.name : 'Mensagens'}
+                {activeOpponent ? activeOpponent.name : t('chat.title')}
               </span>
             </div>
             <button
@@ -417,7 +456,7 @@ export function ChatPopup() {
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {opponents.length === 0 ? (
                 <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.18)', fontSize: 11, fontFamily: 'Share Tech Mono, monospace', padding: '48px 20px' }}>
-                  Nenhum scrim nos próximos 30 dias.
+                  {t('chat.noScrims')}
                 </p>
               ) : opponents.map(opp => {
                 const count    = unread[opp.name] ?? 0
@@ -437,23 +476,7 @@ export function ChatPopup() {
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = count > 0 ? 'rgba(255,68,68,0.04)' : 'transparent' }}
                   >
                     {/* Avatar */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      background: count > 0 ? 'rgba(255,68,68,0.12)' : 'rgba(200,155,60,0.1)',
-                      border: `1px solid ${count > 0 ? 'rgba(255,68,68,0.3)' : 'rgba(200,155,60,0.22)'}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'Share Tech Mono, monospace',
-                      fontSize: 13, fontWeight: 700,
-                      color: count > 0 ? '#FF4444' : '#C89B3C',
-                      overflow: 'hidden',
-                    }}>
-                      {opp.logo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={opp.logo_url} alt={opp.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                      ) : (
-                        opp.name.slice(0, 2).toUpperCase()
-                      )}
-                    </div>
+                    <TeamAvatar name={opp.name} logoUrl={opp.logo_url} hasUnread={count > 0} />
 
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -466,10 +489,10 @@ export function ChatPopup() {
                         {opp.name}
                       </div>
                       <div style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
-                        {formatShortDate(pickActiveScrim(opp.scrims).scheduled_at)}
+                        {formatShortDate(pickActiveScrim(opp.scrims).scheduled_at, t)}
                         {opp.scrims.length > 1 && (
                           <span style={{ marginLeft: 6, color: 'rgba(200,155,60,0.35)' }}>
-                            · {opp.scrims.length} scrims
+                            · {opp.scrims.length} {t('chat.scrims')}
                           </span>
                         )}
                       </div>

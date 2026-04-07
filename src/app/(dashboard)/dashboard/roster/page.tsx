@@ -15,6 +15,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 interface Player {
   id: string
   real_name: string
+  professional_name: string | null
   summoner_name: string
   role: string
   solo_queue_tier: string
@@ -269,7 +270,7 @@ export default function RosterPage() {
                     isEditing={editingId === player.id}
                     onEdit={() => { setEditingId(player.id); setShowImport(false) }}
                     onCancelEdit={() => setEditingId(null)}
-                    onUpdate={(role) => updatePlayer.mutate({ id: player.id, body: { role } })}
+                    onUpdate={(body) => updatePlayer.mutate({ id: player.id, body })}
                     onRemove={() => removePlayer.mutate(player.id)}
                     onToggleStatus={() => toggleStatus.mutate({ id: player.id, status: 'inactive' })}
                     onSync={() => syncPlayer.mutate(player.id)}
@@ -292,7 +293,7 @@ export default function RosterPage() {
                     isEditing={editingId === player.id}
                     onEdit={() => { setEditingId(player.id); setShowImport(false) }}
                     onCancelEdit={() => setEditingId(null)}
-                    onUpdate={(role) => updatePlayer.mutate({ id: player.id, body: { role } })}
+                    onUpdate={(body) => updatePlayer.mutate({ id: player.id, body })}
                     onRemove={() => removePlayer.mutate(player.id)}
                     onToggleStatus={() => toggleStatus.mutate({ id: player.id, status: 'active' })}
                     onSync={() => syncPlayer.mutate(player.id)}
@@ -329,7 +330,7 @@ function PlayerCard({
   isEditing: boolean
   onEdit: () => void
   onCancelEdit: () => void
-  onUpdate: (role: string) => void
+  onUpdate: (body: Record<string, unknown>) => void
   onRemove: () => void
   onToggleStatus: () => void
   onSync: () => void
@@ -341,25 +342,59 @@ function PlayerCard({
   const rank = formatRank(player.solo_queue_tier, player.solo_queue_rank, player.solo_queue_lp)
   const role = ROLE_LABEL[player.role] ?? player.role
 
-  // Inline role editor — only thing that makes sense to change manually
-  // Everything else (tier, rank, lp, summoner_name) comes from Riot sync
+  const [editRole, setEditRole] = useState(player.role)
+  const [editRealName, setEditRealName] = useState(player.real_name ?? '')
+  const [editAlias, setEditAlias] = useState(player.professional_name ?? '')
+
   if (isEditing) {
+    const inputClass = 'rounded-sm border border-gold/20 bg-navy-deep px-2 py-1 text-sm text-text-primary focus:border-gold/50 focus:outline-none'
     return (
-      <div className="rounded-sm border border-gold/20 bg-navy-deep px-4 py-3 flex items-center gap-4">
-        <span className="font-mono text-sm text-text-primary">{player.summoner_name}</span>
+      <div className="rounded-sm border border-gold/20 bg-navy-deep px-4 py-3 flex flex-wrap items-center gap-3">
         <select
-          defaultValue={player.role}
-          onChange={(e) => onUpdate(e.target.value)}
+          value={editRole}
+          onChange={(e) => setEditRole(e.target.value)}
           disabled={updatePending}
-          className="rounded-sm border border-gold/20 bg-navy-deep px-2 py-1 text-sm text-text-primary focus:border-gold/50 focus:outline-none"
+          className={inputClass}
         >
           {['top', 'jungle', 'mid', 'adc', 'support', 'fill'].map((r) => (
             <option key={r} value={r}>{ROLE_LABEL[r]}</option>
           ))}
         </select>
+        <input
+          type="text"
+          value={editRealName}
+          onChange={(e) => setEditRealName(e.target.value)}
+          placeholder={t('roster.form.realNamePlaceholder')}
+          className={`${inputClass} w-48`}
+        />
+        <input
+          type="text"
+          value={editAlias}
+          onChange={(e) => setEditAlias(e.target.value)}
+          placeholder={t('roster.form.proNamePlaceholder')}
+          className={`${inputClass} w-32`}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          loading={updatePending}
+          onClick={() => onUpdate({ role: editRole, real_name: editRealName || null, professional_name: editAlias || null })}
+        >
+          {t('roster.save')}
+        </Button>
         <Button variant="ghost" size="sm" onClick={onCancelEdit}>{t('roster.cancel')}</Button>
       </div>
     )
+  }
+
+  function formatDisplayName(p: Player) {
+    if (!p.real_name) return p.summoner_name
+    if (!p.professional_name) return p.real_name
+    const parts = p.real_name.trim().split(' ')
+    if (parts.length === 1) return `${p.real_name} "${p.professional_name}"`
+    const first = parts[0]
+    const last = parts.slice(1).join(' ')
+    return `${first} "${p.professional_name}" ${last}`
   }
 
   const syncedAt = player.last_sync_at
@@ -372,7 +407,7 @@ function PlayerCard({
         <div className="font-mono text-xs text-gold w-16 shrink-0">{role}</div>
         <div className="min-w-0">
           <div className="font-mono text-sm font-semibold text-text-primary">
-            {player.real_name || player.summoner_name}
+            {formatDisplayName(player)}
           </div>
           <div className="text-xs text-text-muted">
             {player.summoner_name} — {rank}

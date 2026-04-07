@@ -464,6 +464,9 @@
   "roster.form.rank": "Divisão",
   "roster.form.lp": "LP",
   "roster.edit": "Editar",
+  "roster.save": "Salvar",
+  "roster.form.proName": "Alias / Nome pro",
+  "roster.form.proNamePlaceholder": "ex: Robo",
   "roster.deactivate": "Desativar",
   "roster.activate": "Ativar",
   "roster.remove": "Remover",
@@ -511,5 +514,18 @@
   "landing.bot.cta": "ENTRAR NO DISCORD",
   "landing.footer.copy": "© 2026 SCRIMS.LOL",
   "landing.footer.poweredBy": "Powered by",
-  "landing.footer.region": "LEAGUE OF LEGENDS · BR"
+  "landing.footer.region": "LEAGUE OF LEGENDS · BR",
+
+  "chat.title": "Mensagens",
+  "chat.noScrims": "Nenhum scrim nos próximos 30 dias.",
+  "chat.noMessages": "Nenhuma mensagem ainda.",
+  "chat.inputPlaceholder": "Mensagem...",
+  "chat.live": "Ao vivo",
+  "chat.offline": "Offline",
+  "chat.today": "Hoje",
+  "chat.tomorrow": "Amanhã",
+  "chat.yesterday": "Ontem",
+  "chat.inDays": "Em {{count}} dias",
+  "chat.scrims": "scrims",
+  "chat.opponent": "Adversário"
 }
