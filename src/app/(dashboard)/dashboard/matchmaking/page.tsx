@@ -22,7 +22,7 @@ const REGIONS = ['BR', 'NA', 'EUW', 'EUNE', 'LAN', 'LAS', 'OCE', 'KR', 'JP']
 export default function MatchmakingPage() {
   const token = useToken()
   const queryClient = useQueryClient()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [regionFilter, setRegionFilter] = useState('')
   const [openInviteId, setOpenInviteId] = useState<string | null>(null)
   const [inviteForm, setInviteForm] = useState({ message: '', proposed_at: '', format: 'md3' })
@@ -237,7 +237,7 @@ export default function MatchmakingPage() {
                         {[...windows.slice(0, 2), ...Array(Math.max(0, 2 - windows.length)).fill(null)].map((w, i) => (
                           w ? (
                             <div key={w.id} className="grid grid-cols-[100px_1fr] gap-x-2 text-xs text-text-muted">
-                              <span className="capitalize">{w.day_name}</span>
+                              <span>{t(`availability.days.${DAY_INDEX[w.day_name.toLowerCase()] ?? 0}`)}</span>
                               <span>{w.time_range}</span>
                             </div>
                           ) : (
@@ -298,7 +298,7 @@ export default function MatchmakingPage() {
                                   : 'border-gold/20 bg-navy-deep text-text-muted hover:border-gold/40'
                               }`}
                             >
-                              <span className="capitalize">{w.day_name}</span>
+                              <span>{t(`availability.days.${DAY_INDEX[w.day_name.toLowerCase()] ?? 0}`)}</span>
                               <span>{w.time_range}</span>
                             </button>
                           ))}
@@ -324,7 +324,7 @@ export default function MatchmakingPage() {
                             {t('matchmaking.form.proposedAt')}
                           </label>
                           <div className="rounded-sm border border-gold/20 bg-navy-deep px-3 py-2 text-sm text-text-muted">
-                            {new Date(inviteForm.proposed_at).toLocaleString('pt-BR', {
+                            {new Date(inviteForm.proposed_at).toLocaleString(language === 'en' ? 'en-US' : 'pt-BR', {
                               weekday: 'long', day: '2-digit', month: '2-digit',
                               year: 'numeric', hour: '2-digit', minute: '2-digit',
                             })}
