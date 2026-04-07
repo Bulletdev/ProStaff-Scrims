@@ -198,48 +198,62 @@ export default function MatchmakingPage() {
                           </>
                         )}
                       </div>
-                      {org.public_tagline && (
-                        <div className="mt-1 text-xs text-text-muted truncate italic">
-                          {org.public_tagline}
-                        </div>
-                      )}
+                      <div className={`mt-1 text-xs truncate italic ${org.public_tagline ? 'text-text-muted' : 'opacity-0 select-none'}`} aria-hidden={!org.public_tagline}>
+                        {org.public_tagline || '—'}
+                      </div>
                       {/* Unique focus areas and draft types across all windows */}
                       {(() => {
                         const focuses = [...new Set(windows.map(w => w.focus_area).filter((v): v is string => !!v))]
                         const drafts  = [...new Set(windows.map(w => w.draft_type).filter((v): v is string => !!v))]
                         const tierPrefs = [...new Set(windows.map(w => w.tier_preference).filter((v): v is string => !!v && v !== 'any'))]
-                        return (focuses.length > 0 || drafts.length > 0 || tierPrefs.length > 0) ? (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {focuses.map(f => (
-                              <span key={f} className="rounded-sm border border-teal-bright/20 bg-teal-bright/5 px-1.5 py-0.5 font-mono text-[10px] text-teal-bright/70">
-                                {t(`availability.focusArea.${f}`, { defaultValue: f })}
-                              </span>
-                            ))}
-                            {drafts.map(d => (
-                              <span key={d} className="rounded-sm border border-gold/20 bg-gold/5 px-1.5 py-0.5 font-mono text-[10px] text-gold/70">
-                                {t(`availability.draftType.${d}`, { defaultValue: d })}
-                              </span>
-                            ))}
-                            {tierPrefs.map(p => (
-                              <span key={p} className="rounded-sm border border-gold/10 px-1.5 py-0.5 font-mono text-[10px] text-text-dim">
-                                {t(`availability.tier.${p}`, { defaultValue: p })}
-                              </span>
-                            ))}
+                        const hasAny = focuses.length > 0 || drafts.length > 0 || tierPrefs.length > 0
+                        return (
+                          <div className="mt-1.5 flex min-h-[22px] flex-wrap gap-1">
+                            {hasAny ? (
+                              <>
+                                {focuses.map(f => (
+                                  <span key={f} className="rounded-sm border border-teal-bright/20 bg-teal-bright/5 px-1.5 py-0.5 font-mono text-[10px] text-teal-bright/70">
+                                    {t(`availability.focusArea.${f}`, { defaultValue: f })}
+                                  </span>
+                                ))}
+                                {drafts.map(d => (
+                                  <span key={d} className="rounded-sm border border-gold/20 bg-gold/5 px-1.5 py-0.5 font-mono text-[10px] text-gold/70">
+                                    {t(`availability.draftType.${d}`, { defaultValue: d })}
+                                  </span>
+                                ))}
+                                {tierPrefs.map(p => (
+                                  <span key={p} className="rounded-sm border border-gold/10 px-1.5 py-0.5 font-mono text-[10px] text-text-dim">
+                                    {t(`availability.tier.${p}`, { defaultValue: p })}
+                                  </span>
+                                ))}
+                              </>
+                            ) : (
+                              <span className="font-mono text-[10px] text-text-dim">—</span>
+                            )}
                           </div>
-                        ) : null
+                        )
                       })()}
                       <div className="mt-2 space-y-0.5">
-                        {windows.slice(0, 2).map((w) => (
-                          <div key={w.id} className="grid grid-cols-[100px_1fr] gap-x-2 text-xs text-text-muted">
-                            <span className="capitalize">{w.day_name}</span>
-                            <span>{w.time_range}</span>
-                          </div>
+                        {[...windows.slice(0, 2), ...Array(Math.max(0, 2 - windows.length)).fill(null)].map((w, i) => (
+                          w ? (
+                            <div key={w.id} className="grid grid-cols-[100px_1fr] gap-x-2 text-xs text-text-muted">
+                              <span className="capitalize">{w.day_name}</span>
+                              <span>{w.time_range}</span>
+                            </div>
+                          ) : (
+                            <div key={`empty-${i}`} className="grid grid-cols-[100px_1fr] gap-x-2 text-xs text-text-dim opacity-0 select-none" aria-hidden="true">
+                              <span>—</span>
+                              <span>—</span>
+                            </div>
+                          )
                         ))}
-                        {windows.length > 2 && (
-                          <div className="text-[10px] text-text-dim font-mono">
-                            +{windows.length - 2} {windows.length - 2 === 1 ? 'horário' : 'horários'}
-                          </div>
-                        )}
+                        <div className={`text-[10px] font-mono ${windows.length > 2 ? 'text-text-dim' : 'opacity-0 select-none'}`} aria-hidden={windows.length <= 2}>
+                          {windows.length > 2
+                            ? (windows.length - 2 === 1
+                                ? t('matchmaking.moreSlots_one', { count: String(windows.length - 2) })
+                                : t('matchmaking.moreSlots_other', { count: String(windows.length - 2) }))
+                            : '—'}
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">

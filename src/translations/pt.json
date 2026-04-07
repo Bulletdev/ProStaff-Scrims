@@ -215,6 +215,8 @@
   "matchmaking.form.format": "Formato",
   "matchmaking.form.submit": "Enviar Convite",
   "matchmaking.error": "Erro ao carregar sugestões.",
+  "matchmaking.moreSlots_one": "+{{count}} horário",
+  "matchmaking.moreSlots_other": "+{{count}} horários",
 
   "availability.title": "Disponibilidade",
   "availability.subtitle": "Configure as janelas de horário do seu time",

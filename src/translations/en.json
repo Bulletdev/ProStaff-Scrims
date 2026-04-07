@@ -215,6 +215,8 @@
   "matchmaking.form.format": "Format",
   "matchmaking.form.submit": "Send Invite",
   "matchmaking.error": "Error loading suggestions.",
+  "matchmaking.moreSlots_one": "+{{count}} slot",
+  "matchmaking.moreSlots_other": "+{{count}} slots",
 
   "availability.title": "Availability",
   "availability.subtitle": "Configure your team's time windows",
