@@ -157,13 +157,15 @@ export default function MatchmakingPage() {
           {t('matchmaking.empty')}
         </p>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-          {grouped.map(({ organization: org, score, windows }) => {
+        <div className="flex flex-col gap-4 md:flex-row md:items-start">
+          {[grouped.filter((_, i) => i % 2 === 0), grouped.filter((_, i) => i % 2 === 1)].map((col, ci) => (
+            <div key={ci} className="flex flex-1 flex-col gap-4">
+          {col.map(({ organization: org, score, windows }) => {
             const isOpen = openInviteId === org.id
             return (
               <div
                 key={org.id}
-                className="rounded-sm border border-gold/20 bg-navy-card"
+                className="w-full rounded-sm border border-gold/20 bg-navy-card"
               >
                 {/* Card header corner brackets */}
                 <div className="relative p-4">
@@ -227,12 +229,17 @@ export default function MatchmakingPage() {
                         ) : null
                       })()}
                       <div className="mt-2 space-y-0.5">
-                        {windows.map((w) => (
+                        {windows.slice(0, 2).map((w) => (
                           <div key={w.id} className="grid grid-cols-[100px_1fr] gap-x-2 text-xs text-text-muted">
                             <span className="capitalize">{w.day_name}</span>
                             <span>{w.time_range}</span>
                           </div>
                         ))}
+                        {windows.length > 2 && (
+                          <div className="text-[10px] text-text-dim font-mono">
+                            +{windows.length - 2} {windows.length - 2 === 1 ? 'horário' : 'horários'}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
@@ -346,6 +353,8 @@ export default function MatchmakingPage() {
               </div>
             )
           })}
+            </div>
+          ))}
         </div>
       )}
     </div>
