@@ -275,7 +275,7 @@ export default function AvailabilityPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="font-mono text-sm font-bold text-text-primary">
-                      {window.day_name}
+                      {t(`availability.days.${window.day_of_week}`)}
                     </div>
                     <div className="text-xs text-text-muted">{window.time_range}</div>
                   </div>
