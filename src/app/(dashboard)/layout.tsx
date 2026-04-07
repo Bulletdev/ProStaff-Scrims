@@ -8,13 +8,13 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Settings,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { getCookie } from '@/lib/cookie'
 import { tierLabel } from '@/lib/utils'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { ChatPopup } from '@/components/scrims/ChatPopup'
+import { FeedbackDrawer } from '@/components/feedback/FeedbackDrawer'
 
 // ── RETRO color tokens (mirrors ProStaff palette) ──────────────────
 const GOLD = '#C89B3C'
@@ -265,7 +265,8 @@ function RetroDashboardSidebar() {
       {/* ── Spacer ── */}
       <div style={{ flex: 1 }} />
 
-      {/* Settings + Logout — above the divider */}
+      {/* Feedback + Settings + Logout — above the divider */}
+      <FeedbackDrawer isCollapsed={collapsed} />
       <NavItem
         href="/dashboard/settings"
         label={t('nav.item.settings')}
