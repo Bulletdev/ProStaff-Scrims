@@ -13,6 +13,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== 'undefined') {
+      document.cookie = 'scrims_token=; max-age=0; path=/'
+      window.location.href = '/login'
+    }
     const body = await res.json().catch(() => ({}))
     throw new Error(body?.error?.message ?? `HTTP ${res.status}`)
   }
