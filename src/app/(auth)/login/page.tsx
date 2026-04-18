@@ -103,6 +103,12 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" loading={isSubmitting}>
               {t('auth.login.submit')}
             </Button>
+
+            <p className="text-center">
+              <Link href="/forgot-password" className="font-mono text-xs text-text-muted hover:text-gold transition-colors">
+                {t('auth.login.forgotPassword')}
+              </Link>
+            </p>
           </form>
 
           <p className="mt-4 text-center text-xs text-text-muted">
